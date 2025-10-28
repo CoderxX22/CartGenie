@@ -22,14 +22,6 @@ export default function NotFoundScreen() {
     <>
       <Stack.Screen options={{ title: '' }} />
       <ThemedView style={styles.container}>
-        <Video
-          source={require('@/assets/animations/loading.webm')}
-          style={styles.video}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay
-          isLooping
-          isMuted
-        />
       </ThemedView>
     </>
   );

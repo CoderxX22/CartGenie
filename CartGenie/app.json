@@ -23,6 +23,9 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "extra": {
+      "EXPO_PUBLIC_API_URL": "https://<subdomain>.ngrok-free.app"
+    },
     "plugins": [
       "expo-router",
       [
@@ -33,7 +36,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
