@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import AppThemeProvider from '@/components/appThemeProvider';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-import React = require('react');
+import React from 'react';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
