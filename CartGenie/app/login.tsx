@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Stack, useRouter,Link, Href } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { Stack, useRouter, Link, Href } from 'expo-router';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Platform,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
@@ -19,8 +21,35 @@ export default function LoginScreen() {
   const router = useRouter();
   const col = useAppColors();
 
-  // יוצרים styles דינמיים לפי הצבעים הנוכחיים
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   const styles = useMemo(() => makeStyles(col), [col]);
+
+  // имитация API-входа (замени на свой вызов)
+  const fakeSignIn = () =>
+    new Promise<void>((resolve) => setTimeout(resolve, 1200));
+
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Missing information', 'Please fill in both fields before logging in.');
+      return;
+    }
+    if (isLoading) return; // защита от двойного нажатия
+
+    try {
+      setIsLoading(true);
+      await fakeSignIn(); // TODO: replace with real API
+      router.push('/personalDetails');
+    } catch (e) {
+      Alert.alert('Login failed', 'Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isDisabled = isLoading || !username.trim() || !password.trim();
 
   return (
     <>
@@ -37,6 +66,9 @@ export default function LoginScreen() {
               style={styles.input}
               placeholderTextColor={col.subtitle}
               autoCapitalize="none"
+              value={username}
+              onChangeText={setUsername}
+              editable={!isLoading}
             />
           </View>
 
@@ -48,17 +80,36 @@ export default function LoginScreen() {
               secureTextEntry
               style={styles.input}
               placeholderTextColor={col.subtitle}
+              value={password}
+              onChangeText={setPassword}
+              editable={!isLoading}
             />
           </View>
 
           {/* Login */}
           <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push('/personalDetails')}
+            style={[
+              styles.loginButton,
+              isDisabled && { opacity: 0.5 },
+            ]}
+            onPress={handleLogin}
             activeOpacity={0.9}
+            disabled={isDisabled}
+            accessibilityState={{ disabled: isDisabled, busy: isLoading }}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+            {isLoading ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={[styles.loginButtonText, { marginLeft: 8 }]}>
+                  Signing in…
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.loginButtonText}>Login</Text>
+                <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Or divider */}
@@ -69,22 +120,25 @@ export default function LoginScreen() {
           </View>
 
           {/* Google */}
-          <TouchableOpacity style={styles.googleButton} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.googleButton}
+            activeOpacity={0.9}
+            disabled={isLoading}
+          >
             <Ionicons name="logo-google" size={20} />
             <Text style={styles.googleButtonText}>Connect via Google</Text>
           </TouchableOpacity>
 
           {/* Links */}
-          <TouchableOpacity>
+          <TouchableOpacity disabled={isLoading}>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
 
           <Link href={'/signUpScreen' as Href}>
             <Text style={styles.signUp}>
-             Don’t have an account? <Text style={styles.signUpLink}>Sign Up</Text>
+              Don’t have an account? <Text style={styles.signUpLink}>Sign Up</Text>
             </Text>
           </Link>
-
         </View>
       </View>
     </>
@@ -93,7 +147,6 @@ export default function LoginScreen() {
 
 const CARD_MAX = 520;
 
-// Factory שמייצר StyleSheet לפי ערכות הצבעים
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     container: {
