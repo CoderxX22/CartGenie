@@ -8,20 +8,40 @@ import {
   TouchableOpacity,
   Platform,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
+type Sex = '' | 'male' | 'female';
+
+type Errors = {
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
+  sex?: string;
+};
 
 export default function PersonalDetails() {
+  const router = useRouter();
+  const col = useAppColors();
+
+  // form state
+  const [firstName, setFirstName] = useState('');
+  const [lastName,  setLastName]  = useState('');
   const [birthDate, setBirthDate] = useState<Date | null>(null);
-  const [ageYears, setAgeYears] = useState<string>('');
-  const [sex, setSex] = useState('');
+  const [ageYears,  setAgeYears]  = useState<string>('');
+  const [sex,       setSex]       = useState<Sex>('');
+
+  // ui state
   const [showSexPicker, setShowSexPicker] = useState(false);
   const [showAgePicker, setShowAgePicker] = useState(false);
-  const router = useRouter();
+  const [loading,       setLoading]       = useState(false);
+
+  // errors
+  const [errors, setErrors] = useState<Errors>({});
 
   const onAgeChange = (_event: any, selected?: Date) => {
     if (!selected) return;
@@ -33,6 +53,7 @@ export default function PersonalDetails() {
     if (m < 0 || (m === 0 && today.getDate() < selected.getDate())) years--;
     setAgeYears(String(years));
 
+    if (errors.birthDate) setErrors(prev => ({ ...prev, birthDate: undefined }));
     if (Platform.OS !== 'ios') setShowAgePicker(false);
   };
 
@@ -43,10 +64,35 @@ export default function PersonalDetails() {
     const yyyy = d.getFullYear();
     return `${dd}/${mm}/${yyyy}`;
   };
-  const col = useAppColors();
 
-  // יוצרים styles דינמיים לפי הצבעים הנוכחיים
+  const validate = () => {
+    const e: Errors = {};
+    if (!firstName.trim()) e.firstName = 'First name is required';
+    if (!lastName.trim())  e.lastName  = 'Last name is required';
+    if (!birthDate)        e.birthDate = 'Birth date is required';
+    if (!sex)              e.sex       = 'Sex is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const onContinue = async () => {
+    if (loading) return;
+    if (!validate()) return;
+
+    try {
+      setLoading(true);
+      // TODO: save data if needed
+      await new Promise(r => setTimeout(r, 700)); // demo delay
+      router.push('/bodyMeasures');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const styles = useMemo(() => makeStyles(col), [col]);
+
+  const isDisabled = loading || !firstName || !lastName || !birthDate || !sex;
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, title: 'Info' }} />
@@ -59,13 +105,15 @@ export default function PersonalDetails() {
             <Text style={styles.label}>First Name</Text>
             <TextInput
               placeholder="Enter your first name"
-              style={styles.input}
+              style={[styles.input, errors.firstName && styles.inputError]}
               placeholderTextColor="#9AA0A6"
-              onFocus={() => {
-                setShowAgePicker(false);
-                setShowSexPicker(false);
-              }}
+              value={firstName}
+              onChangeText={(t) => { setFirstName(t); if (errors.firstName) setErrors(p => ({...p, firstName: undefined})); }}
+              onFocus={() => { setShowAgePicker(false); setShowSexPicker(false); }}
+              autoCapitalize="words"
+              returnKeyType="next"
             />
+            {!!errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
           </View>
 
           {/* Last Name */}
@@ -73,60 +121,66 @@ export default function PersonalDetails() {
             <Text style={styles.label}>Last Name</Text>
             <TextInput
               placeholder="Enter your last name"
-              style={styles.input}
+              style={[styles.input, errors.lastName && styles.inputError]}
               placeholderTextColor="#9AA0A6"
-              onFocus={() => {
-                setShowAgePicker(false);
-                setShowSexPicker(false);
-              }}
+              value={lastName}
+              onChangeText={(t) => { setLastName(t); if (errors.lastName) setErrors(p => ({...p, lastName: undefined})); }}
+              onFocus={() => { setShowAgePicker(false); setShowSexPicker(false); }}
+              autoCapitalize="words"
+              returnKeyType="next"
             />
+            {!!errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
           </View>
 
           {/* Birth Date */}
           <View style={styles.field}>
             <Text style={styles.label}>Birth Date</Text>
             <TouchableOpacity
-              style={[styles.input, styles.inputButton]}
+              style={[styles.input, styles.inputButton, errors.birthDate && styles.inputError]}
               activeOpacity={0.85}
-              onPress={() => {
-                setShowSexPicker(false);
-                setShowAgePicker(true);
-              }}
+              onPress={() => { setShowSexPicker(false); setShowAgePicker(true); }}
             >
               <Text style={[styles.inputText, { color: birthDate ? '#111827' : '#9AA0A6' }]}>
                 {birthDate ? formatDate(birthDate) : 'Select your birth date'}
               </Text>
               <Ionicons name="calendar-outline" size={20} color="#94A3B8" />
             </TouchableOpacity>
-            {!!ageYears && (
-              <Text style={styles.helperText}>Calculated age: {ageYears}</Text>
-            )}
+            {!!errors.birthDate && <Text style={styles.errorText}>{errors.birthDate}</Text>}
+            {!!ageYears && <Text style={styles.helperText}>Calculated age: {ageYears}</Text>}
           </View>
 
           {/* Sex */}
           <View style={styles.field}>
             <Text style={styles.label}>Sex</Text>
             <TouchableOpacity
-              style={[styles.input, styles.inputButton]}
+              style={[styles.input, styles.inputButton, errors.sex && styles.inputError]}
               activeOpacity={0.85}
-              onPress={() => {
-                setShowAgePicker(false);
-                setShowSexPicker(true);
-              }}
+              onPress={() => { setShowAgePicker(false); setShowSexPicker(true); }}
             >
               <Text style={[styles.inputText, { color: sex ? '#111827' : '#9AA0A6' }]}>
                 {sex ? sex.charAt(0).toUpperCase() + sex.slice(1) : 'Select sex'}
               </Text>
               <Ionicons name="chevron-down" size={20} color="#94A3B8" />
             </TouchableOpacity>
+            {!!errors.sex && <Text style={styles.errorText}>{errors.sex}</Text>}
           </View>
 
           {/* Continue */}
           <TouchableOpacity
-            style={styles.ContinueButton}
-            onPress={() => router.push('/bodyMeasures')}
+            style={[styles.ContinueButton, isDisabled && { opacity: 0.5 }]}
+            onPress={onContinue}
+            disabled={isDisabled}
+            activeOpacity={0.9}
+            accessibilityState={{ disabled: isDisabled, busy: loading }}
           >
-            <Text style={styles.ContinueButtonText}>Continue</Text>
+            {loading ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={[styles.ContinueButtonText, { marginLeft: 8 }]}>Saving…</Text>
+              </>
+            ) : (
+              <Text style={styles.ContinueButtonText}>Continue</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -167,15 +221,11 @@ export default function PersonalDetails() {
             <View style={styles.modalHandle} />
             <Picker
               selectedValue={sex}
-              onValueChange={(value) => {
-                setSex(value);
-                setShowSexPicker(false);
-              }}
+              onValueChange={(value: Sex) => { setSex(value); setShowSexPicker(false); if (errors.sex) setErrors(p => ({...p, sex: undefined})); }}
             >
               <Picker.Item label="Select Sex" value="" />
               <Picker.Item label="Male" value="male" />
               <Picker.Item label="Female" value="female" />
-              <Picker.Item label="Other" value="other" />
             </Picker>
             <TouchableOpacity style={styles.closeButton} onPress={() => setShowSexPicker(false)}>
               <Text style={styles.closeButtonText}>Close</Text>
@@ -192,130 +242,138 @@ const ACCENT = '#0096c7';
 
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: c.background, // רקע רך ונעים
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: CARD_MAX,
-    backgroundColor: c.card,
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOpacity: 0.08,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
-      },
-      android: { elevation: 5 },
-    }),
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: c.text,
-    marginBottom: 18,
-    letterSpacing: 0.2,
-  },
-  field: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    color: c.subtitle,
-    marginBottom: 6,
-    letterSpacing: 0.2,
-  },
-  input: {
-    width: '100%',
-    backgroundColor: c.inputBg,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: c.text,
-    borderWidth: 1,
-    borderColor: c.inputBorder,
-  },
-  inputButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingRight: 12,
-  },
-  inputText: {
-    fontSize: 16,
-  },
-  helperText: {
-    marginTop: 6,
-    fontSize: 12,
-    color: c.text,
-  },
-  ContinueButton: {
-    width: '100%',
-    backgroundColor: c.accent,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0369A1',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.22,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-    }),
-  },
-  ContinueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(17, 24, 39, 0.35)',
-  },
-  modalContainer: {
-    backgroundColor: c.inputBg,
-    paddingTop: 8,
-    paddingBottom: 16,
-    paddingHorizontal: 12,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderWidth: 1,
-    borderColor: c.inputBorder,
-  },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#D1D5DB',
-    marginBottom: 10,
-  },
-  closeButton: {
-    alignSelf: 'center',
-    marginTop: 12,
-    backgroundColor: c.accent,
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+    },
+    card: {
+      width: '100%',
+      maxWidth: CARD_MAX,
+      backgroundColor: c.card,
+      borderRadius: 18,
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#0F172A',
+          shadowOpacity: 0.08,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 8 },
+        },
+        android: { elevation: 5 },
+      }),
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: c.text,
+      marginBottom: 18,
+      letterSpacing: 0.2,
+    },
+    field: { marginBottom: 16 },
+    label: {
+      fontSize: 13,
+      color: c.subtitle,
+      marginBottom: 6,
+      letterSpacing: 0.2,
+    },
+    input: {
+      width: '100%',
+      backgroundColor: c.inputBg,
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      fontSize: 16,
+      color: c.text,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+    },
+    inputError: {
+      borderColor: '#ef4444',
+    },
+    errorText: {
+      marginTop: 6,
+      fontSize: 12,
+      color: '#ef4444',
+    },
+    inputButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingRight: 12,
+    },
+    inputText: { fontSize: 16 },
+    helperText: {
+      marginTop: 6,
+      fontSize: 12,
+      color: c.text,
+    },
+    ContinueButton: {
+      width: '100%',
+      backgroundColor: c.accent ?? ACCENT,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      marginTop: 6,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#0369A1',
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: 0.22,
+          shadowRadius: 8,
+        },
+        android: { elevation: 3 },
+      }),
+    },
+    ContinueButtonText: {
+      color: '#FFFFFF',
+      fontSize: 17,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    // Modals
+    modalOverlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(17, 24, 39, 0.35)',
+    },
+    modalContainer: {
+      backgroundColor: c.inputBg,
+      paddingTop: 8,
+      paddingBottom: 16,
+      paddingHorizontal: 12,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+    },
+    modalHandle: {
+      alignSelf: 'center',
+      width: 44,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: '#D1D5DB',
+      marginBottom: 10,
+    },
+    closeButton: {
+      alignSelf: 'center',
+      marginTop: 12,
+      backgroundColor: c.accent ?? ACCENT,
+      paddingVertical: 10,
+      paddingHorizontal: 28,
+      borderRadius: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    closeButtonText: {
+      color: '#fff',
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+  });
