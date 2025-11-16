@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { API_URL } from '../src/config/api';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
 const { width } = Dimensions.get('window');
@@ -27,21 +28,37 @@ export default function LoginScreen() {
 
   const styles = useMemo(() => makeStyles(col), [col]);
 
-  // имитация API-входа (замени на свой вызов)
-  const fakeSignIn = () =>
-    new Promise<void>((resolve) => setTimeout(resolve, 1200));
-
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
       Alert.alert('Missing information', 'Please fill in both fields before logging in.');
       return;
     }
-    if (isLoading) return; // защита от двойного нажатия
-
+    if (isLoading) return;
     try {
       setIsLoading(true);
-      await fakeSignIn(); // TODO: replace with real API
-      router.push('/personalDetails');
+  
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+  
+      const data = await res.json();
+  
+      if (!data.success) {
+        Alert.alert('Login failed', data.message || 'Please try again.');
+        return;
+      }
+  
+      // data.loginInfos עכשיו מחזיק את המידע שתרצה
+      console.log('loginInfos:', data.loginInfos);
+  
+          // בדיקה של isFirstLogin
+      if (data.isFirstLogin) {
+        router.push('/personalDetails');
+      } else {
+        router.push('/(tabs)/homePage');
+      }
     } catch (e) {
       Alert.alert('Login failed', 'Please try again.');
     } finally {
