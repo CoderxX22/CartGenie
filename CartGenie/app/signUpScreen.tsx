@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { API_URL } from "../src/config/api";
 import { Stack, useRouter, Link, Href } from 'expo-router';
 import {
   View,
@@ -81,21 +82,38 @@ export default function SignUpScreen() {
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-
-  const fakeSignUp = () => new Promise<void>((r) => setTimeout(r, 1000));
+  
 
   const onSubmit = async () => {
     if (loading) return;
     if (!validate()) return;
-
+  
     try {
       setLoading(true);
-      await fakeSignUp(); // Replace with real API call
-      router.push('/personalDetails');
+  
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          email,
+          password: pwd,
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (!data.success) {
+        alert(data.message || "Registration failed");
+        return;
+      }
+  
+      router.push("/login");
     } finally {
       setLoading(false);
     }
   };
+  
 
   const disabled = loading || !email || !username || !pwd || !pwd2 || !accept;
 

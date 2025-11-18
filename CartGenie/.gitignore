@@ -37,6 +37,3 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
-
-# mongodb server data
-.env

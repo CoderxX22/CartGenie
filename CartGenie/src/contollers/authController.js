@@ -1,103 +1,56 @@
-// ייבוא המודל עם הסיומת .js
-import User from '../models/user.js'; 
+import LoginInfo from '../models/loginInfo.js';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
-// פונקציה ליצירת אסימון JWT
-const createToken = (id) => {
-  // המפתח הסודי נטען מקובץ .env
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '3d', // האסימון יפוג בעוד 3 ימים (דוגמה)
-  });
-};
-
-// --- לוגיקת רישום משתמש חדש (Register) ---
 export const register = async (req, res) => {
-  const { username, userId, firstName, lastName, email, password } = req.body;
-
-  if (!username || !userId || !firstName || !lastName || !password) {
-      return res.status(400).json({ message: 'Missing required fields: username, userId, firstName, lastName, and password.' });
-  }
-
   try {
-    // 1. בדיקה אם המשתמש כבר קיים לפי username או userId
-    let userExists = await User.findOne({ $or: [{ username }, { userId }] });
-    if (userExists) {
-      const field = userExists.username === username ? 'Username' : 'User ID';
-      return res.status(400).json({ message: `${field} already exists.` });
-    }
+    const { username, email, password } = req.body;
 
-    // 2. גיבוב הסיסמה (Hashing)
-    const salt = await bcrypt.genSalt(10); 
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // 3. יצירת המשתמש ב-DB
-    const user = await User.create({
+    // בדיקת כפילויות לפי username או email
+    const exists = await LoginInfo.findOne({ $or: [{ email }, { username }] });
+    if (exists) return res.status(400).json({ success: false, message: "User already exists" });
+
+    // hash לסיסמה
+    const hashed = await bcrypt.hash(password, 10);
+
+    await LoginInfo.create({
       username,
-      userId,
-      firstName,
-      lastName,
       email,
-      password: hashedPassword,
+      password: hashed
     });
 
-    // 4. יצירת אסימון (Token)
-    const token = createToken(user._id);
-
-    res.status(201).json({ 
-        token, 
-        user: { 
-            id: user._id, 
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName
-        } 
-    });
-
-  } catch (error) {
-    console.error(error);
-    if (error.name === 'ValidationError') {
-        const messages = Object.values(error.errors).map(val => val.message);
-        return res.status(400).json({ message: messages.join(', ') });
-    }
-    res.status(500).json({ message: 'Server error during registration' });
+    res.json({ success: true, message: "User registered" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// --- לוגיקת התחברות משתמש (Login) ---
 export const login = async (req, res) => {
   const { username, password } = req.body;
 
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Missing username or password' });
+  }
+
   try {
-    // 1. מציאת המשתמש ב-DB לפי ה-Username
-    const user = await User.findOne({ username });
-
+    // חיפוש משתמש לפי username
+    const user = await LoginInfo.findOne({ username: username.toLowerCase().trim() });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid Credentials (Username not found)' });
+      return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    // 2. השוואת הסיסמה שהוזנה לסיסמה המגובבת ב-DB
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid Credentials (Wrong password)' });
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
-
-    // 3. יצירת אסימון (Token)
-    const token = createToken(user._id);
-
-    res.json({ 
-        token, 
-        user: { 
-            id: user._id, 
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName
-        } 
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error during login' });
+    const firstLogin = user.isFirstLogin;
+    if (user.isFirstLogin) {
+      user.isFirstLogin = false;
+      await user.save();
+    }
+    return res.json({ success: true, username: user.username, email: user.email,isFirstLogin: firstLogin });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
