@@ -1,3 +1,4 @@
+// Navbar.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
@@ -8,8 +9,8 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const items = [
-    { key: 'Feedback History', label: 'Feedback History', icon: 'document-text', path: '@/app/bloodTestUploadScreen', match: (p: string) => p.includes('bloodTestUploadScreen') },
-    { key: 'Discover', label: 'Discover', icon: 'compass-outline', path: '@/app/allergies', match: (p: string) => p.includes('allergies') },
+    { key: 'Discover', label: 'Discover', icon: 'compass-outline', path: '/discover', match: (p: string) => p.includes('/discover') },
+    { key: 'FeedbackHistory', label: 'Feedback History', icon: 'document-text-outline', path: '/feedbackHistory', match: (p: string) => p.includes('/feedbackHistory') },
   ];
 
   return (
@@ -40,41 +41,23 @@ export default function Navbar() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 12,
-    paddingTop: 10,
+    left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 12, paddingTop: 10,
     paddingBottom: Platform.select({ ios: 20, android: 14 }),
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E9F2',
-    flexDirection: 'row',
-    gap: 8,
+    borderTopWidth: 1, borderTopColor: '#E5E9F2',
+    flexDirection: 'row', gap: 8,
     ...Platform.select({
       ios: { shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: -6 } },
       android: { elevation: 10 },
     }),
   },
   item: {
-    flex: 1,
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FFF',
+    flex: 1, height: 52, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#FFF',
   },
-  itemActive: {
-    backgroundColor: '#E9F6FB',
-    borderColor: '#CBEAF6',
-  },
-  label: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  labelActive: {
-    color: '#0F172A',
-  },
+  itemActive: { backgroundColor: '#E9F6FB', borderColor: '#CBEAF6' },
+  label: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  labelActive: { color: '#0F172A' },
 });
