@@ -3,7 +3,9 @@ import { ActionSheetIOS, Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 
-export type SelectedFile = { name: string; size?: number };
+export type SelectedFile = {
+  uri: string; name: string; size?: number 
+};
 
 export function useUploadFile() {
   const [file, setFile] = useState<SelectedFile | null>(null);

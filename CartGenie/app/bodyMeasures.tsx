@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
   StyleSheet,
@@ -11,7 +11,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
-  Alert, // ← добавили
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -57,6 +57,28 @@ function getBmiInfo(bmiStr: string) {
 
 export default function BodyMeasures() {
   const router = useRouter();
+  
+  // 📥 קליטת הנתונים מהמסך הקודם כולל username
+  const params = useLocalSearchParams();
+  const {
+    username,
+    firstName,
+    lastName,
+    birthDate,
+    ageYears,
+    sex,
+  } = params;
+
+  // הצגת הנתונים שהתקבלו (לדיבאג)
+  useEffect(() => {
+    console.log('📋 Personal details received:');
+    console.log('Username:', username);
+    console.log('First Name:', firstName);
+    console.log('Last Name:', lastName);
+    console.log('Birth Date:', birthDate);
+    console.log('Age:', ageYears);
+    console.log('Sex:', sex);
+  }, [username, firstName, lastName, birthDate, ageYears, sex]);
 
   const [weight, setWeight] = useState<string>(''); // kg
   const [height, setHeight] = useState<string>(''); // cm
@@ -151,7 +173,26 @@ export default function BodyMeasures() {
       setLoading(true);
       await new Promise(r => setTimeout(r, 700));
       Keyboard.dismiss();
-      router.push('/AllergiesScreen');
+      
+      // 📤 העברת כל הנתונים (הקודמים + החדשים) למסך הבא
+      router.push({
+        pathname: '/AllergiesScreen',
+        params: {
+          // username מהמסך הראשון
+          username,
+          // נתונים מהמסך הקודם
+          firstName,
+          lastName,
+          birthDate,
+          ageYears,
+          sex,
+          // נתונים חדשים מהמסך הזה
+          weight,
+          height,
+          waist,
+          bmi,
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -177,6 +218,16 @@ export default function BodyMeasures() {
               <Text style={styles.des}>
                 For better analysis, please provide your physical parameters. Be as accurate as possible.
               </Text>
+
+              {/* הצגת מידע על המשתמש */}
+              {username && firstName && (
+                <View style={styles.userInfoBanner}>
+                  <Ionicons name="person-circle-outline" size={20} color={ACCENT} />
+                  <Text style={styles.userInfoText}>
+                    @{username} • {firstName} {lastName} • {ageYears} years
+                  </Text>
+                </View>
+              )}
 
               {/* Weight */}
               <View style={styles.field}>
@@ -347,6 +398,23 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textAlign: 'center',
     letterSpacing: 0.2,
+  },
+  userInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${ACCENT}15`,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  userInfoText: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '600',
   },
   field: { marginBottom: 16 },
   label: {

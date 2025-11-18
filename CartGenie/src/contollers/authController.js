@@ -43,12 +43,8 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
-    const firstLogin = user.isFirstLogin;
-    if (user.isFirstLogin) {
-      user.isFirstLogin = false;
-      await user.save();
-    }
-    return res.json({ success: true, username: user.username, email: user.email,isFirstLogin: firstLogin });
+
+    return res.json({ success: true, username: user.username, email: user.email });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });

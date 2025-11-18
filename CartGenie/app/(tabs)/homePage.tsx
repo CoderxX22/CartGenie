@@ -7,7 +7,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 
@@ -41,6 +41,11 @@ function formatShortDate(d: Date) {
 
 export default function HomePage() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // חילוץ השם הפרטי מהפרמטרים
+  const { firstName } = params;
+
   const col = useAppColors();
 
   // Allergies status
@@ -130,7 +135,10 @@ export default function HomePage() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Hi Alex, ready to make your cart healthier?</Text>
+              {/* כאן השינוי: הצגת השם הפרטי או 'Guest' אם אין */}
+              <Text style={styles.title}>
+                Hi {firstName ? firstName : 'Guest'}, ready to make your cart healthier?
+              </Text>
               <Text style={styles.subtitle}>
                 Analyze your receipts, blood tests and allergies to give you smarter grocery
                 feedback.

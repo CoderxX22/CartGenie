@@ -53,12 +53,12 @@ export default function LoginScreen() {
       // data.loginInfos עכשיו מחזיק את המידע שתרצה
       console.log('loginInfos:', data.loginInfos);
   
-          // בדיקה של isFirstLogin
-      if (data.isFirstLogin) {
-        router.push('/personalDetails');
-      } else {
-        router.push('/(tabs)/homePage');
-      }
+      router.push({
+        pathname: '/personalDetails',
+        params: {
+          username: username.trim(),
+        },
+      });
     } catch (e) {
       Alert.alert('Login failed', 'Please try again.');
     } finally {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
   StyleSheet,
@@ -105,6 +105,36 @@ export default function AllergiesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // 📥 קליטת כל הנתונים מהמסכים הקודמים
+  const params = useLocalSearchParams();
+  const {
+    username,
+    firstName,
+    lastName,
+    birthDate,
+    ageYears,
+    sex,
+    // מהמסך השני - Body Measures
+    weight,
+    height,
+    waist,
+    bmi,
+  } = params;
+
+  // הצגת הנתונים שהתקבלו (לדיבאג)
+  React.useEffect(() => {
+    console.log('🎯 All data received in Allergies Screen:');
+    console.log('=== Personal Info ===');
+    console.log('Name:', firstName, lastName);
+    console.log('Age:', ageYears);
+    console.log('Sex:', sex);
+    console.log('=== Body Measures ===');
+    console.log('Weight:', weight, 'kg');
+    console.log('Height:', height, 'cm');
+    console.log('Waist:', waist, 'cm');
+    console.log('BMI:', bmi);
+  }, [firstName, lastName, ageYears, sex, weight, height, waist, bmi]);
+
   const {
     loading, selected, other, setOther,
     toggle, clearAll,
@@ -128,7 +158,27 @@ export default function AllergiesScreen() {
 
   const handleNothingPress = async () => {
     await saveAllergies({ selected: [], other: '', severity: {} });
-    router.push('/bloodTestUploadScreen');
+    
+    // 📤 העברת כל הנתונים למסך הבא
+    router.push({
+      pathname: '/bloodTestUploadScreen',
+      params: {
+        username,
+        firstName,
+        lastName,
+        birthDate,
+        ageYears,
+        sex,
+        weight,
+        height,
+        waist,
+        bmi,
+        // נתונים מהמסך הזה (ללא אלרגיות)
+        allergies: JSON.stringify([]),
+        otherAllergies: '',
+        allergySeverity: JSON.stringify({}),
+      },
+    });
   };
 
   const confirmNothing = () => {
@@ -183,6 +233,30 @@ export default function AllergiesScreen() {
     });
   }, [selected, other, severity], 400);
 
+  // פונקציית המשך עם כל הנתונים
+  const handleContinue = async () => {
+    // 📤 העברת כל הנתונים למסך הבא
+    router.push({
+      pathname: '/bloodTestUploadScreen',
+      params: {
+        // נתונים מהמסכים הקודמים
+        firstName,
+        lastName,
+        birthDate,
+        ageYears,
+        sex,
+        weight,
+        height,
+        waist,
+        bmi,
+        // נתונים חדשים מהמסך הזה
+        allergies: JSON.stringify(Array.from(selected)),
+        otherAllergies: other.trim(),
+        allergySeverity: JSON.stringify(severity),
+      },
+    });
+  };
+
   return (
     <>
       <Stack.Screen options={{ title: 'Allergies' }} />
@@ -196,6 +270,16 @@ export default function AllergiesScreen() {
             <Text style={styles.subtitle}>
               You can select multiple options and set severity (mild / moderate / severe) for each.
             </Text>
+
+            {/* הצגת מידע על המשתמש אם קיים */}
+            {firstName && (
+              <View style={styles.userInfoBanner}>
+                <Ionicons name="person-circle-outline" size={20} color={ACCENT} />
+                <Text style={styles.userInfoText}>
+                  {firstName} {lastName} • {ageYears} years • BMI: {bmi}
+                </Text>
+              </View>
+            )}
 
             {/* Search */}
             <View style={styles.searchRow}>
@@ -295,7 +379,7 @@ export default function AllergiesScreen() {
             {/* Continue */}
             <TouchableOpacity
               style={[styles.cta, !actuallyHasSelection && { opacity: 0.6 }]}
-              onPress={() => router.push('/bloodTestUploadScreen')}
+              onPress={handleContinue}
               activeOpacity={0.92}
               disabled={!actuallyHasSelection || loading}
               accessibilityRole="button"
@@ -396,6 +480,22 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 14,
     textAlign: 'center',
+  },
+  userInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${ACCENT}15`,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 14,
+    gap: 8,
+  },
+  userInfoText: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '600',
   },
 
   // search

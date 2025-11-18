@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
   StyleSheet,
@@ -27,6 +27,14 @@ type Errors = {
 export default function PersonalDetails() {
   const router = useRouter();
   const col = useAppColors();
+
+  // 📥 קבלת username מהמסך הקודם (LoginScreen)
+  const params = useLocalSearchParams();
+  const { username } = params;
+
+  useEffect(() => {
+    console.log('👤 Username received:', username);
+  }, [username]);
 
   // form state
   const [firstName, setFirstName] = useState('');
@@ -83,7 +91,21 @@ export default function PersonalDetails() {
       setLoading(true);
       // TODO: save data if needed
       await new Promise(r => setTimeout(r, 700)); // demo delay
-      router.push('/bodyMeasures');
+      
+      // 📤 העברת כל הנתונים למסך הבא כולל username
+      router.push({
+        pathname: '/bodyMeasures',
+        params: {
+          // username מהמסך הקודם
+          username,
+          // נתונים חדשים
+          firstName,
+          lastName,
+          birthDate: birthDate?.toISOString() || '',
+          ageYears,
+          sex,
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -99,6 +121,14 @@ export default function PersonalDetails() {
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Personal Information</Text>
+
+          {/* הצגת username אם קיים */}
+          {username && (
+            <View style={styles.usernameBanner}>
+              <Ionicons name="person-circle" size={20} color={col.accent ?? ACCENT} />
+              <Text style={styles.usernameText}>Logged in as: {username}</Text>
+            </View>
+          )}
 
           {/* First Name */}
           <View style={styles.field}>
@@ -273,6 +303,22 @@ const makeStyles = (c: AppColors) =>
       color: c.text,
       marginBottom: 18,
       letterSpacing: 0.2,
+    },
+    usernameBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: `${ACCENT}15`,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 16,
+      gap: 8,
+    },
+    usernameText: {
+      fontSize: 14,
+      color: c.text,
+      fontWeight: '600',
     },
     field: { marginBottom: 16 },
     label: {
