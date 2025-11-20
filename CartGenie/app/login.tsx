@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Stack, useRouter, Link, Href } from 'expo-router';
 import {
   View,
@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  BackHandler, // ייבוא לטיפול בכפתור חזרה באנדרואיד
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../src/config/api';
@@ -17,6 +18,7 @@ import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
 const { width } = Dimensions.get('window');
 const ACCENT = '#0096c7';
+const CARD_MAX = 520;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -28,39 +30,76 @@ export default function LoginScreen() {
 
   const styles = useMemo(() => makeStyles(col), [col]);
 
+  // חסימת כפתור חזרה פיזי (בעיקר לאנדרואיד)
+  // זה מונע חזרה למסך קודם (כמו מסך Splash או Logout) כשנמצאים במסך ההתחברות
+  useEffect(() => {
+    const onBackPress = () => {
+      // החזרת true מונעת את הפעולה הדיפולטיבית (חזרה אחורה)
+      return true; 
+    };
+
+    // הוספת המאזין לכפתור החזרה
+    const backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+    // פונקציית הניקוי מסירה את המאזין
+    return () => backHandlerSubscription.remove();
+  }, []);
+
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
       Alert.alert('Missing information', 'Please fill in both fields before logging in.');
       return;
     }
     if (isLoading) return;
+    
     try {
       setIsLoading(true);
   
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      // 1. אימות שם משתמש וסיסמה
+      const loginRes = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
   
-      const data = await res.json();
+      const loginData = await loginRes.json();
   
-      if (!data.success) {
-        Alert.alert('Login failed', data.message || 'Please try again.');
+      if (!loginData.success) {
+        Alert.alert('Login failed', loginData.message || 'Please try again.');
+        setIsLoading(false);
         return;
       }
   
-      // data.loginInfos עכשיו מחזיק את המידע שתרצה
-      console.log('loginInfos:', data.loginInfos);
-  
-      router.push({
-        pathname: '/personalDetails',
-        params: {
-          username: username.trim(),
-        },
-      });
+      // 2. בדיקת נתונים קיימים
+      const userDataRes = await fetch(`${API_URL}/api/userdata/${username.trim()}`);
+      
+      if (userDataRes.status === 200) {
+        const userDataJson = await userDataRes.json();
+        const firstName = userDataJson.data?.personalDetails?.firstName || username.trim();
+
+        // שימוש ב-replace כדי להחליף את המסך הנוכחי
+        // כך המשתמש לא יוכל ללחוץ "חזור" ממסך הבית ולהגיע שוב להתחברות
+        router.replace({
+            pathname: '/(tabs)/homePage',
+            params: {
+                username: username.trim(),
+                firstName: firstName
+            }
+        });
+
+      } else {
+        // גם כאן replace כדי למנוע חזרה
+        router.replace({
+            pathname: '/personalDetails',
+            params: {
+              username: username.trim(),
+            },
+        });
+      }
+
     } catch (e) {
-      Alert.alert('Login failed', 'Please try again.');
+      console.error('Login error:', e);
+      Alert.alert('Login failed', 'Network error or server issue.');
     } finally {
       setIsLoading(false);
     }
@@ -70,12 +109,20 @@ export default function LoginScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, title: 'Login' }} />
+      <Stack.Screen 
+        options={{ 
+          headerShown: false, 
+          title: 'Login',
+          // מניעת מחוות חזרה (Swipe back) ב-iOS
+          gestureEnabled: false, 
+          // הסתרת כפתור חזור בשורת הכותרת (אם קיים)
+          headerLeft: () => null,
+        }} 
+      />
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Welcome To CartGenie</Text>
 
-          {/* Username */}
           <View style={styles.field}>
             <Text style={styles.label}>Username</Text>
             <TextInput
@@ -89,7 +136,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Password */}
           <View style={styles.field}>
             <Text style={styles.label}>Password</Text>
             <TextInput
@@ -103,7 +149,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Login */}
           <TouchableOpacity
             style={[
               styles.loginButton,
@@ -112,7 +157,6 @@ export default function LoginScreen() {
             onPress={handleLogin}
             activeOpacity={0.9}
             disabled={isDisabled}
-            accessibilityState={{ disabled: isDisabled, busy: isLoading }}
           >
             {isLoading ? (
               <>
@@ -129,14 +173,12 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Or divider */}
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
             <Text style={styles.dividerText}>or</Text>
             <View style={styles.divider} />
           </View>
 
-          {/* Google */}
           <TouchableOpacity
             style={styles.googleButton}
             activeOpacity={0.9}
@@ -146,7 +188,6 @@ export default function LoginScreen() {
             <Text style={styles.googleButtonText}>Connect via Google</Text>
           </TouchableOpacity>
 
-          {/* Links */}
           <TouchableOpacity disabled={isLoading}>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
@@ -161,8 +202,6 @@ export default function LoginScreen() {
     </>
   );
 }
-
-const CARD_MAX = 520;
 
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
