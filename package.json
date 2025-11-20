@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "expo": "^54.0.20"
+    "expo": "^54.0.20",
+    "expo-camera": "~17.0.9"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",

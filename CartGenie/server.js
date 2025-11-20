@@ -7,6 +7,7 @@ import cors from 'cors';
 import authRouter from './src/routes/auth.js'; 
 // ---> הוסף את השורה הזו (ודא שהנתיב לקובץ נכון!):
 import userDataRouter from './src/routes/userDataRoutes.js'; 
+import productsRouter from './src/routes/products.js';
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use((req, res, next) => {
 
 // 2. חיבור הראוטרים לנתיבים
 app.use('/api/auth', authRouter);
+app.use('/api/products', productsRouter);
 // ---> הוסף את השורה הזו. זה מחבר את הראוטר שלך לכתובת הנכונה:
 app.use('/api/userdata', userDataRouter);
 

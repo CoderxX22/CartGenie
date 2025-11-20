@@ -1,134 +1,185 @@
-// components/ScanProduct.tsx
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Image,
-  TouchableOpacity,
   ActivityIndicator,
-  Alert,
+  TouchableOpacity,
+  Platform,
 } from 'react-native';
+import {
+  CameraView,
+  useCameraPermissions,
+  BarcodeScanningResult,
+} from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { useScanProduct } from '@/hooks/useScanProduct';
 
 type Props = {
-  autoOpen?: boolean; // auto-open camera on mount
-  onComplete: (uri: string) => void; // pass barcode photo URI upward
+  onComplete: (barcode: string) => void;
 };
 
-export default function ScanProduct({ autoOpen = true, onComplete }: Props) {
-  const { loading, imageUri, openCamera, reset } = useScanProduct({
-    onDenied: () =>
-      Alert.alert(
-        'Camera Permission Needed',
-        'Please enable camera access in Settings to scan products.'
-      ),
-    onError: () =>
-      Alert.alert('Error', 'Unable to open the camera. Please try again.'),
-  });
+export default function ScanProduct({ onComplete }: Props) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
 
-  useEffect(() => {
-    if (autoOpen) openCamera();
-  }, [autoOpen, openCamera]);
+  // пока ещё не получили объект permission
+  if (!permission) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.infoText}>Checking camera permission…</Text>
+      </View>
+    );
+  }
+
+  // нет доступа к камере
+  if (!permission.granted) {
+    return (
+      <View style={styles.center}>
+        <Ionicons name="alert-circle-outline" size={32} color="#f97316" />
+        <Text style={styles.infoText}>
+          We need your permission to use the camera for barcode scanning.
+        </Text>
+        <TouchableOpacity style={styles.button} onPress={requestPermission}>
+          <Ionicons name="camera" size={18} color="#fff" />
+          <Text style={styles.buttonText}>Grant permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (scanned) return; // защита от двойного срабатывания
+
+    setScanned(true);
+    const value = String(result.data); // это строка штрихкода
+
+    // вызываем родительский коллбек
+    onComplete(value);
+  };
 
   return (
     <View style={styles.container}>
-      {/* CAMERA LOADING */}
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" />
-          <Text style={styles.hint}>Opening camera…</Text>
+      <CameraView
+        style={styles.camera}
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+        barcodeScannerSettings={{
+          // какие типы штрихкодов нас интересуют
+          barcodeTypes: ['ean13', 'ean8', 'upc_e', 'upc_a', 'qr'],
+        }}
+      />
+
+      {/* Оверлей с рамкой и подсказкой */}
+      <View style={styles.overlay}>
+        <View style={styles.frame} />
+        <View style={styles.bottomPanel}>
+          <Text style={styles.hintTitle}>Point the barcode inside the frame</Text>
+          <Text style={styles.hintText}>Scanning will happen automatically</Text>
+
+          {scanned && (
+            <View style={styles.rescanBlock}>
+              <Text style={styles.infoText}>
+                Barcode scanned, processing…
+              </Text>
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton]}
+                onPress={() => setScanned(false)}
+              >
+                <Ionicons name="scan-outline" size={18} color="#0f172a" />
+                <Text style={styles.secondaryButtonText}>Scan again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      )}
-
-      {/* NO IMAGE YET */}
-      {!loading && !imageUri && (
-        <View style={styles.center}>
-          <Ionicons name="barcode-outline" size={42} color="#64748B" />
-          <Text style={styles.hint}>No barcode captured yet.</Text>
-          <TouchableOpacity style={styles.button} onPress={openCamera}>
-            <Ionicons name="camera" size={18} color="#fff" />
-            <Text style={styles.buttonText}>Open Camera</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* IMAGE PREVIEW */}
-      {!loading && imageUri && (
-        <>
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.preview}
-            resizeMode="contain"
-          />
-
-          <View style={styles.row}>
-            {/* RETAKE */}
-            <TouchableOpacity
-              style={[styles.button, styles.secondary]}
-              onPress={() => {
-                reset();
-                openCamera();
-              }}
-            >
-              <Ionicons
-                name="camera-reverse-outline"
-                size={18}
-                color="#0f172a"
-              />
-              <Text style={styles.secondaryText}>Retake</Text>
-            </TouchableOpacity>
-
-            {/* USE PHOTO */}
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => onComplete(imageUri)}
-            >
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Use Photo</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  center: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#000' },
+  camera: { flex: 1 },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
+    paddingVertical: 40,
   },
-  hint: { color: '#64748B', fontSize: 14 },
-  preview: {
-    flex: 1,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+  frame: {
+    width: '70%',
+    aspectRatio: 1,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: '#fff',
+    backgroundColor: 'transparent',
   },
-  row: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingTop: 12,
-  },
-  button: {
-    flex: 1,
-    backgroundColor: '#0096c7',
-    paddingVertical: 14,
-    borderRadius: 12,
+  bottomPanel: {
+    width: '100%',
+    paddingHorizontal: 24,
     alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+  },
+  hintTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  hintText: {
+    color: '#e5e7eb',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  rescanBlock: {
+    marginTop: 12,
+    alignItems: 'center',
     gap: 8,
   },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  secondary: {
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+
+  center: {
+    flex: 1,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
   },
-  secondaryText: { color: '#0f172a', fontSize: 15, fontWeight: '700' },
+  infoText: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+
+  button: {
+    marginTop: 8,
+    backgroundColor: '#0096c7',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0369A1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: '#f3f4f6',
+  },
+  secondaryButtonText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
