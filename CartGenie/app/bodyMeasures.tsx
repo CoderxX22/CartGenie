@@ -206,7 +206,7 @@ export default function BodyMeasures() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Measures' }} />
+      <Stack.Screen options={{ title: 'Body Measures' }} />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.screen}>
           <ScrollView

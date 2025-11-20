@@ -31,7 +31,7 @@ export const saveUserData = async (req, res) => {
     const missing = requiredFields.filter(field => !req.body[field]);
 
     if (missing.length > 0) {
-      console.log('❌ Validation failed. Missing:', missing); // נדפיס גם בשרת
+      console.log('❌ Validation failed. Missing:', missing);
       return res.status(400).json({ 
         success: false, 
         message: `Missing required fields: ${missing.join(', ')}` 

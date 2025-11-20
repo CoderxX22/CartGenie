@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
+  Modal,
+  TouchableWithoutFeedback,
+  Alert,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,22 +17,23 @@ import * as SecureStore from 'expo-secure-store';
 import Navbar from '@/components/navBar';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 import { useAllergies } from '@/hooks/useAllergies';
+import { routeToScreen } from 'expo-router/build/useScreens';
 
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 const BLOOD_KEY = 'BLOOD_TEST_LAST_UPLOAD';
 
 const DAILY_TIPS: string[] = [
-  'Add at least one colorful vegetable to every meal to increase fiber and micronutrients.',
-  'Try to drink a glass of water before each meal to support hydration and appetite control.',
-  'Replace one sugary drink today with water, tea, or sparkling water without added sugar.',
-  'Include a source of protein in each meal to help you stay full for longer.',
-  'Swap refined grains (white bread, white rice) for whole grains when possible.',
-  'Add a handful of nuts or seeds as a healthy snack rich in good fats and minerals.',
-  'Plan at least one meat-free meal this week using beans, lentils, or tofu.',
-  'Aim to fill half of your plate with vegetables at lunch or dinner.',
-  'Check the label of one product today and look for added sugars or trans fats.',
-  'Eat slowly and mindfully – it can help you notice fullness and enjoy food more.',
+  'Add at least one colorful vegetable to every meal.',
+  'Drink a glass of water before each meal.',
+  'Replace one sugary drink with water or tea.',
+  'Include a source of protein in each meal.',
+  'Swap refined grains for whole grains.',
+  'Add a handful of nuts as a healthy snack.',
+  'Plan at least one meat-free meal this week.',
+  'Fill half your plate with vegetables.',
+  'Check labels for added sugars.',
+  'Eat slowly and mindfully.',
 ];
 
 function formatShortDate(d: Date) {
@@ -43,18 +47,20 @@ export default function HomePage() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // חילוץ השם הפרטי מהפרמטרים
-  const { firstName } = params;
-
+  const firstName = typeof params.firstName === 'string' ? params.firstName : 'Guest';
+  const username = typeof params.username ==='string'? params.username : "";
   const col = useAppColors();
+  const styles = useMemo(() => makeStyles(col), [col]);
 
-  // Allergies status
+  // --- State ---
   const { hasSelection, loading: allergiesLoading } = useAllergies([]);
-
-  // Blood test date
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
   const [bloodLoading, setBloodLoading] = useState(true);
+  
+  // State לתפריט הצד
+  const [menuVisible, setMenuVisible] = useState(false);
 
+  // --- Effects ---
   useEffect(() => {
     const loadBloodDate = async () => {
       try {
@@ -72,121 +78,157 @@ export default function HomePage() {
     loadBloodDate();
   }, []);
 
+  // --- Logic ---
   const tip = useMemo(
     () => DAILY_TIPS[Math.floor(Math.random() * DAILY_TIPS.length)],
     []
   );
 
   const bloodStatus = useMemo(() => {
-    if (bloodLoading) {
-      return {
-        icon: 'ellipse-outline',
-        text: 'Blood test status: loading…',
-        color: col.subtitle,
-      };
-    }
-    if (!lastBloodTest) {
-      return {
-        icon: 'ellipse-outline',
-        text: 'Blood test not uploaded yet',
-        color: col.subtitle,
-      };
-    }
+    if (bloodLoading) return { icon: 'ellipse-outline', text: 'Loading...', color: col.subtitle };
+    if (!lastBloodTest) return { icon: 'ellipse-outline', text: 'Not uploaded yet', color: col.subtitle };
 
     const now = new Date();
     const diff = (now.getTime() - lastBloodTest.getTime()) / (1000 * 60 * 60 * 24);
     const formatted = formatShortDate(lastBloodTest);
 
-    if (diff > 365) {
-      return {
-        icon: 'alert-circle',
-        text: `Blood test outdated (last updated: ${formatted})`,
-        color: '#f97316',
-      };
-    }
+    if (diff > 365) return { icon: 'alert-circle', text: `Outdated (${formatted})`, color: '#f97316' };
+    return { icon: 'checkmark-circle', text: `Up to date (${formatted})`, color: '#22c55e' };
+  }, [bloodLoading, lastBloodTest, col.subtitle]);
 
-    return {
-      icon: 'checkmark-circle',
-      text: `Blood test up to date (last updated: ${formatted})`,
-      color: '#22c55e',
-    };
-  }, [bloodLoading, lastBloodTest]);
+  // --- Handlers לתפריט ---
+  const handleUpdateInfo = () => {
+    setMenuVisible(false);
+    router.push({
+      pathname: '/bodyMeasures',
+      params: { 
+        username, 
+      }
+    });  
+  };
 
-  const styles = useMemo(() => makeStyles(col), [col]);
+  const handleHelp = () => {
+    setMenuVisible(false);
+    router.push({pathname: '/(tabs)/helpScreen'});
+  };
+
+  const handleLogout = () => {
+    setMenuVisible(false);
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+            text: 'Logout', 
+            style: 'destructive',
+            onPress: () => {
+              router.push({pathname: '/login'});
+            }
+        }
+    ]);
+  };
 
   return (
     <>
       <Stack.Screen options={{ title: 'Home', headerShown: false }} />
+
+      {/* --- תפריט צד (Modal) --- */}
+      <Modal
+        visible={menuVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+            {/* לחיצה על הרקע השקוף סוגרת את התפריט */}
+            <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
+                <View style={styles.modalBackdrop} />
+            </TouchableWithoutFeedback>
+
+            {/* תוכן התפריט */}
+            <View style={styles.menuContainer}>
+                <View style={styles.menuHeader}>
+                    <Text style={styles.menuTitle}>Menu</Text>
+                    <TouchableOpacity onPress={() => setMenuVisible(false)}>
+                        <Ionicons name="close" size={24} color={col.text} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.menuItems}>
+                    <TouchableOpacity style={styles.menuItem} onPress={handleUpdateInfo}>
+                        <Ionicons name="person-outline" size={22} color={ACCENT} />
+                        <Text style={styles.menuItemText}>Update Personal Info</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
+                        <Ionicons name="help-circle-outline" size={22} color={ACCENT} />
+                        <Text style={styles.menuItemText}>Help</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                        <Ionicons name="log-out-outline" size={22} color="#ef4444" />
+                        <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Logout</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
+      </Modal>
 
       <ScrollView
         contentContainerStyle={[styles.container, { paddingBottom: 96 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>
-          {/* Logo + texts */}
+          {/* Logo + Menu Button */}
           <View style={styles.logoRow}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="cart-outline" size={20} color="#fff" />
-              <Ionicons
-                name="sparkles-outline"
-                size={16}
-                color="#FFEDD5"
-                style={{ position: 'absolute', right: -4, top: -2 }}
-              />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                <View style={styles.logoCircle}>
+                <Ionicons name="cart-outline" size={20} color="#fff" />
+                <Ionicons
+                    name="sparkles-outline"
+                    size={16}
+                    color="#FFEDD5"
+                    style={{ position: 'absolute', right: -4, top: -2 }}
+                />
+                </View>
+                <View style={{ flex: 1 }}>
+                <Text style={styles.title}>
+                    Hi {firstName}
+                </Text>
+                <Text style={styles.subtitle}>Let's make your cart healthier.</Text>
+                </View>
             </View>
-            <View style={{ flex: 1 }}>
-              {/* כאן השינוי: הצגת השם הפרטי או 'Guest' אם אין */}
-              <Text style={styles.title}>
-                Hi {firstName ? firstName : 'Guest'}, ready to make your cart healthier?
-              </Text>
-              <Text style={styles.subtitle}>
-                Analyze your receipts, blood tests and allergies to give you smarter grocery
-                feedback.
-              </Text>
-            </View>
+            
+            {/* כפתור המבורגר לפתיחת התפריט */}
+            <TouchableOpacity 
+                style={styles.menuButton} 
+                onPress={() => setMenuVisible(true)}
+            >
+                <Ionicons name="menu" size={28} color={col.text} />
+            </TouchableOpacity>
           </View>
 
           {/* Status */}
           <View style={styles.statusCard}>
             <Text style={styles.statusTitle}>Profile status</Text>
-
             <View style={styles.statusRow}>
               <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
               <Text style={styles.statusText}>Personal info completed</Text>
             </View>
-
             <View style={styles.statusRow}>
               <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
               <Text style={styles.statusText}>Body measures completed</Text>
             </View>
-
             <View style={styles.statusRow}>
               <Ionicons
-                name={
-                  allergiesLoading
-                    ? 'ellipse-outline'
-                    : hasSelection
-                    ? 'checkmark-circle'
-                    : 'alert-circle'
-                }
+                name={allergiesLoading ? 'ellipse-outline' : hasSelection ? 'checkmark-circle' : 'alert-circle'}
                 size={18}
-                color={
-                  allergiesLoading
-                    ? col.subtitle
-                    : hasSelection
-                    ? '#22c55e'
-                    : '#f97316'
-                }
+                color={allergiesLoading ? col.subtitle : hasSelection ? '#22c55e' : '#f97316'}
               />
               <Text style={styles.statusText}>
-                {allergiesLoading
-                  ? 'Allergies: loading…'
-                  : hasSelection
-                  ? 'Allergies saved'
-                  : 'Allergies missing'}
+                {allergiesLoading ? 'Loading...' : hasSelection ? 'Allergies saved' : 'Allergies missing'}
               </Text>
             </View>
-
             <View style={styles.statusRow}>
               <Ionicons name={bloodStatus.icon as any} size={18} color={bloodStatus.color} />
               <Text style={[styles.statusText, { color: bloodStatus.color }]}>
@@ -195,9 +237,8 @@ export default function HomePage() {
             </View>
           </View>
 
-          {/* Primary Actions */}
+          {/* Quick Actions */}
           <Text style={styles.sectionTitle}>Quick actions</Text>
-
           <TouchableOpacity
             style={styles.primaryFull}
             activeOpacity={0.9}
@@ -206,14 +247,10 @@ export default function HomePage() {
             <View style={styles.primaryIconCircle}>
               <Ionicons name="document-text-outline" size={22} color="#fff" />
             </View>
-
             <View style={{ flex: 1 }}>
               <Text style={styles.primaryTitle}>Scan receipt</Text>
-              <Text style={styles.primarySubtitle}>
-                Upload or scan your grocery receipt to get instant feedback.
-              </Text>
+              <Text style={styles.primarySubtitle}>Upload or scan grocery receipt.</Text>
             </View>
-
             <Ionicons name="chevron-forward" size={20} color="#E0F2FE" />
           </TouchableOpacity>
 
@@ -225,18 +262,14 @@ export default function HomePage() {
             <View style={styles.secondaryIconCircle}>
               <Ionicons name="barcode-outline" size={22} color={ACCENT} />
             </View>
-
             <View style={{ flex: 1 }}>
-              <Text style={styles.secondaryTitle}>Scan product barcode</Text>
-              <Text style={styles.secondarySubtitle}>
-                Check if a single product fits your profile before buying.
-              </Text>
+              <Text style={styles.secondaryTitle}>Scan product</Text>
+              <Text style={styles.secondarySubtitle}>Check single product details.</Text>
             </View>
-
             <Ionicons name="chevron-forward" size={20} color={col.subtitle} />
           </TouchableOpacity>
 
-          {/* Daily Tip */}
+          {/* Tip */}
           <View style={styles.tip}>
             <View style={styles.tipIconCircle}>
               <Ionicons name="bulb-outline" size={18} color="#facc15" />
@@ -282,13 +315,11 @@ const makeStyles = (c: AppColors) =>
         android: { elevation: 5 },
       }),
     },
-
-    // Logo zone
     logoRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 14,
-      gap: 12,
+      justifyContent: 'space-between',
+      marginBottom: 18,
     },
     logoCircle: {
       width: 44,
@@ -309,8 +340,9 @@ const makeStyles = (c: AppColors) =>
       color: c.subtitle,
       marginTop: 2,
     },
-
-    // Status box
+    menuButton: {
+        padding: 4,
+    },
     statusCard: {
       marginTop: 4,
       marginBottom: 18,
@@ -337,16 +369,12 @@ const makeStyles = (c: AppColors) =>
       fontSize: 13,
       color: '#0F172A',
     },
-
-    // Section
     sectionTitle: {
       fontSize: 15,
       fontWeight: '700',
       color: c.text,
       marginBottom: 8,
     },
-
-    // Primary Action Cards
     primaryFull: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -375,7 +403,6 @@ const makeStyles = (c: AppColors) =>
       color: '#E0F2FE',
       marginTop: 2,
     },
-
     primaryFullSecondary: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -406,8 +433,6 @@ const makeStyles = (c: AppColors) =>
       color: c.subtitle,
       marginTop: 2,
     },
-
-    // Tip of the day
     tip: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -437,5 +462,65 @@ const makeStyles = (c: AppColors) =>
       fontSize: 13,
       color: c.text,
       marginTop: 2,
+    },
+    
+    // --- Menu Modal Styles ---
+    modalOverlay: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'flex-start', // תפריט מצד שמאל
+        backgroundColor: 'rgba(0,0,0,0.5)', // רקע חצי שקוף
+    },
+    modalBackdrop: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+    },
+    menuContainer: {
+        width: '75%', // רוחב התפריט
+        maxWidth: 300,
+        backgroundColor: c.card,
+        height: '100%',
+        paddingVertical: 40,
+        paddingHorizontal: 20,
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 },
+            android: { elevation: 5 },
+        }),
+    },
+    menuHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 30,
+        paddingBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: c.inputBorder,
+    },
+    menuTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: c.text,
+    },
+    menuItems: {
+        gap: 16,
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        paddingVertical: 12,
+    },
+    menuItemText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: c.text,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: c.inputBorder,
+        marginVertical: 10,
     },
   });
