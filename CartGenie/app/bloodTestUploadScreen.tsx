@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUploadFile } from '@/hooks/useUploadFile';
@@ -12,8 +20,7 @@ const CARD_MAX = 520;
 export default function UploadResultsScreen() {
   const router = useRouter();
   const { file, progress, uploading, canSubmit, chooseSource } = useUploadFile();
-  
-  // 📥 קבלת כל הנתונים מהמסכים הקודמים
+
   const params = useLocalSearchParams();
   const {
     username,
@@ -40,17 +47,14 @@ export default function UploadResultsScreen() {
     console.log('All params:', params);
   }, [params]);
 
-  /**
-   * פונקציה לשליחת כל הנתונים למונגו
-   */
+  // отправка данных в Mongo (используется только для Submit)
   const saveDataToMongo = async (includeBloodTest = false) => {
     if (isSaving) return;
 
     try {
       setIsSaving(true);
 
-      // בניית אובייקט הנתונים
-      const userData = {
+      const userData: any = {
         username,
         firstName,
         lastName,
@@ -66,22 +70,20 @@ export default function UploadResultsScreen() {
         allergySeverity,
       };
 
-      // אם יש קובץ בדיקת דם, נוסיף אותו
-      //if (includeBloodTest && file) {
-       // userData.bloodTest = {
-        //  fileName: file.name,
-        //  fileUrl: file.uri || '', // אם יש URL של הקובץ
-        //  fileSize: file.size,
-       // };
-     // }
+      // если потом захочешь добавить файл:
+      // if (includeBloodTest && file) {
+      //   userData.bloodTest = {
+      //     fileName: file.name,
+      //     fileUrl: file.uri || '',
+      //     fileSize: file.size,
+      //   };
+      // }
 
       console.log('Sending data to MongoDB:', userData);
 
       const response = await fetch(`${API_URL}/api/userdata/save`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
 
@@ -93,75 +95,41 @@ export default function UploadResultsScreen() {
 
       console.log('✅ Data saved successfully:', data);
       return true;
-
     } catch (error) {
       console.error('❌ Error saving data:', error);
-      Alert.alert(
-        'Error',
-        `Failed to save data: ${error}`,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', `Failed to save data: ${error}`, [{ text: 'OK' }]);
       return false;
     } finally {
       setIsSaving(false);
     }
   };
 
-  /**
-   * טיפול בלחיצה על "Submit" - שמירה עם בדיקת דם
-   */
+  // Submit — сохраняем ВСЁ, включая анализ (если реализуешь includeBloodTest)
   const handleSubmit = async () => {
     if (!canSubmit || isSaving) return;
 
     const success = await saveDataToMongo(true);
-    
+
     if (success) {
-      Alert.alert(
-        'Success!',
-        'Your data and blood test results have been saved successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push('/(tabs)/homePage'),
-          },
-        ]
-      );
+      Alert.alert('Success!', 'Your data and blood test results have been saved successfully.', [
+        {
+          text: 'OK',
+          onPress: () => router.push('/(tabs)/homePage'),
+        },
+      ]);
     }
   };
 
-  /**
-   * טיפול בלחיצה על "Upload Later" - שמירה ללא בדיקת דם
-   */
-  const handleUploadLater = async () => {
-    if (isSaving) return;
-
-    Alert.alert(
-      'Upload Later',
-      'Your personal information will be saved. You can upload blood test results later.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Continue',
-          onPress: async () => {
-            const success = await saveDataToMongo(false);
-            
-            if (success) {
-              router.push({
-                pathname: '/(tabs)/homePage',
-                params: { 
-                  username, 
-                  firstName, 
-                  lastName 
-                }
-              });
-            }
-          },
-        },
-      ]
-    );
+  // 👉 Upload Later — теперь просто переходит на home, без сохранения и без Alert
+  const handleUploadLater = () => {
+    router.push({
+      pathname: '/(tabs)/homePage',
+      params: {
+        username,
+        firstName,
+        lastName,
+      },
+    });
   };
 
   return (
@@ -175,7 +143,6 @@ export default function UploadResultsScreen() {
             We accept PDF and JPG formats.
           </Text>
 
-          {/* הצגת username */}
           {username && (
             <View style={styles.usernameBanner}>
               <Ionicons name="person-circle" size={20} color={ACCENT} />
@@ -185,10 +152,12 @@ export default function UploadResultsScreen() {
             </View>
           )}
 
-          {/* Functional uploader */}
+          {/* uploader */}
           <View style={styles.dropZone}>
             <View style={{ alignItems: 'center', gap: 6, maxWidth: 480 }}>
-              <Text style={styles.dropTitle}>{file ? 'File selected' : 'Drag and drop or browse'}</Text>
+              <Text style={styles.dropTitle}>
+                {file ? 'File selected' : 'Drag and drop or browse'}
+              </Text>
               <Text style={styles.dropSub}>Accepted formats: PDF, JPG, PNG</Text>
               {file && (
                 <Text style={styles.fileInfo} numberOfLines={1}>
@@ -197,13 +166,15 @@ export default function UploadResultsScreen() {
               )}
             </View>
 
-            <TouchableOpacity 
-              style={styles.browseBtn} 
-              activeOpacity={0.9} 
+            <TouchableOpacity
+              style={styles.browseBtn}
+              activeOpacity={0.9}
               onPress={chooseSource}
               disabled={isSaving}
             >
-              <Text style={styles.browseText}>{file ? 'Choose another file' : 'Browse Files'}</Text>
+              <Text style={styles.browseText}>
+                {file ? 'Choose another file' : 'Browse Files'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -225,10 +196,7 @@ export default function UploadResultsScreen() {
           {/* Submit */}
           <View style={styles.submitRow}>
             <TouchableOpacity
-              style={[
-                styles.submitBtn, 
-                (!canSubmit || isSaving) && { opacity: 0.6 }
-              ]}
+              style={[styles.submitBtn, (!canSubmit || isSaving) && { opacity: 0.6 }]}
               onPress={handleSubmit}
               activeOpacity={0.92}
               disabled={!canSubmit || isSaving}
@@ -241,23 +209,22 @@ export default function UploadResultsScreen() {
               ) : (
                 <>
                   <Text style={styles.submitText}>Submit</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color="#fff"
+                    style={{ marginLeft: 8 }}
+                  />
                 </>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Upload Later */}
-          <TouchableOpacity
-            onPress={handleUploadLater}
-            disabled={isSaving}
-          >
-            <Text style={[styles.skip, isSaving && { opacity: 0.5 }]}>
-              I prefer Upload Later
-            </Text>
+          {/* Upload Later – теперь просто навигация */}
+          <TouchableOpacity onPress={handleUploadLater}>
+            <Text style={styles.skip}>I prefer Upload Later</Text>
           </TouchableOpacity>
 
-          {/* Saving indicator */}
           {isSaving && (
             <View style={styles.savingIndicator}>
               <ActivityIndicator size="small" color={ACCENT} />
@@ -271,44 +238,44 @@ export default function UploadResultsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F3F6FA', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 24 
+  container: {
+    flex: 1,
+    backgroundColor: '#F3F6FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
   card: {
-    width: '100%', 
-    maxWidth: CARD_MAX, 
-    backgroundColor: '#FFFFFF', 
+    width: '100%',
+    maxWidth: CARD_MAX,
+    backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    paddingHorizontal: 20, 
-    paddingVertical: 22, 
-    borderWidth: 1, 
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    borderWidth: 1,
     borderColor: '#EEF2F7',
     ...Platform.select({
-      ios: { 
-        shadowColor: '#0F172A', 
-        shadowOpacity: 0.08, 
-        shadowRadius: 14, 
-        shadowOffset: { width: 0, height: 8 } 
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 8 },
       },
       android: { elevation: 5 },
     }),
   },
-  title: { 
-    fontSize: 20, 
-    fontWeight: '800', 
-    color: '#141414', 
-    marginBottom: 6, 
-    letterSpacing: -0.2 
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#141414',
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
-  subtitle: { 
-    fontSize: 13, 
-    color: '#6B7280', 
-    marginBottom: 16 
+  subtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 16,
   },
   usernameBanner: {
     flexDirection: 'row',
@@ -326,117 +293,115 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '600',
   },
-  dropZone: { 
-    borderStyle: 'dashed', 
-    borderWidth: 2, 
-    borderColor: '#DBDBDB', 
-    borderRadius: 12, 
-    paddingVertical: 56, 
-    paddingHorizontal: 24, 
-    alignItems: 'center', 
-    gap: 16, 
-    backgroundColor: '#FFFFFF' 
+  dropZone: {
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#DBDBDB',
+    borderRadius: 12,
+    paddingVertical: 56,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: '#FFFFFF',
   },
-  dropTitle: { 
-    color: '#141414', 
-    fontSize: 17, 
-    fontWeight: '700', 
-    letterSpacing: -0.2, 
-    textAlign: 'center' 
+  dropTitle: {
+    color: '#141414',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    textAlign: 'center',
   },
-  dropSub: { 
-    color: '#141414', 
-    fontSize: 13, 
-    textAlign: 'center', 
-    opacity: 0.9 
+  dropSub: {
+    color: '#141414',
+    fontSize: 13,
+    textAlign: 'center',
+    opacity: 0.9,
   },
-  fileInfo: { 
-    marginTop: 6, 
-    fontSize: 12, 
-    color: '#475569' 
+  fileInfo: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#475569',
   },
-  browseBtn: { 
-    height: 40, 
-    paddingHorizontal: 16, 
-    borderRadius: 10, 
-    backgroundColor: '#EDEDED', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    minWidth: 120, 
-    maxWidth: 480 
+  browseBtn: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#EDEDED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 120,
+    maxWidth: 480,
   },
-  browseText: { 
-    color: '#141414', 
-    fontSize: 14, 
-    fontWeight: '700', 
-    letterSpacing: 0.15 
+  browseText: {
+    color: '#141414',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.15,
   },
-  progressWrap: { 
-    gap: 8, 
-    paddingTop: 14 
+  progressWrap: {
+    gap: 8,
+    paddingTop: 14,
   },
-  progressRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between' 
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  progressLabel: { 
-    color: '#141414', 
-    fontSize: 16, 
-    fontWeight: '500' 
+  progressLabel: {
+    color: '#141414',
+    fontSize: 16,
+    fontWeight: '500',
   },
-  progressPct: { 
-    color: '#141414', 
-    fontSize: 14, 
-    fontWeight: '600' 
+  progressPct: {
+    color: '#141414',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  progressTrack: { 
-    height: 8, 
-    backgroundColor: '#DBDBDB', 
-    borderRadius: 6, 
-    overflow: 'hidden' 
+  progressTrack: {
+    height: 8,
+    backgroundColor: '#DBDBDB',
+    borderRadius: 6,
+    overflow: 'hidden',
   },
-  progressFill: { 
-    height: '100%', 
-    backgroundColor: '#141414', 
-    borderRadius: 6 
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#141414',
+    borderRadius: 6,
   },
-  submitRow: { 
-    alignItems: 'flex-end', 
-    paddingTop: 16 
+  submitRow: {
+    alignItems: 'flex-end',
+    paddingTop: 16,
   },
   submitBtn: {
-    width: '100%', 
-    backgroundColor: ACCENT, 
-    paddingVertical: 16, 
+    width: '100%',
+    backgroundColor: ACCENT,
+    paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    flexDirection: 'row', 
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
     marginTop: 6,
     ...Platform.select({
-      ios: { 
-        shadowColor: '#0369A1', 
-        shadowOffset: { width: 0, height: 5 }, 
-        shadowOpacity: 0.22, 
-        shadowRadius: 8 
+      ios: {
+        shadowColor: '#0369A1',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.22,
+        shadowRadius: 8,
       },
       android: { elevation: 3 },
     }),
   },
-  submitText: { 
-    color: '#FAFAFA', 
-    fontSize: 14, 
-    fontWeight: '700', 
-    letterSpacing: 0.15 
+  submitText: {
+    color: '#FAFAFA',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.15,
   },
-  skip: { 
-    fontWeight: '700', 
-    marginTop: 20, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    textAlign: 'center', 
-    textDecorationLine: 'underline', 
-    color: '#023e8a' 
+  skip: {
+    fontWeight: '700',
+    marginTop: 20,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    color: '#023e8a',
   },
   savingIndicator: {
     flexDirection: 'row',

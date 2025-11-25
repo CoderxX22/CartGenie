@@ -10,12 +10,12 @@ export default function ScanProductScreen() {
     <>
       <Stack.Screen options={{ title: 'Scan Product', headerShown: true }} />
       <ScanProduct
-        autoOpen
-        onComplete={(productData) => {
-          // Here you continue your flow: upload/process/navigate
-          // For example:
-          // router.replace({ pathname: '/productResult', params: { id: productData.id } });
-          router.back(); // temporary: just go back
+        onComplete={(barcode) => {
+          // barcode — строка штрихкода
+          router.push({
+            pathname: '/productResult',
+            params: { barcode },
+          } as any); // as any — чтобы TypeScript не ныл по типам путей
         }}
       />
     </>
