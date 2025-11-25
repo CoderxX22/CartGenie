@@ -14,7 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
+// final (DO NOT CHANGE)
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 
@@ -58,7 +58,6 @@ function getBmiInfo(bmiStr: string) {
 export default function BodyMeasures() {
   const router = useRouter();
   
-  // 📥 קליטת הנתונים מהמסך הקודם כולל username
   const params = useLocalSearchParams();
   const {
     username,
@@ -69,9 +68,8 @@ export default function BodyMeasures() {
     sex,
   } = params;
 
-  // הצגת הנתונים שהתקבלו (לדיבאג)
   useEffect(() => {
-    console.log('📋 Personal details received:');
+    console.log('Personal details received:');
     console.log('Username:', username);
     console.log('First Name:', firstName);
     console.log('Last Name:', lastName);
@@ -174,19 +172,15 @@ export default function BodyMeasures() {
       await new Promise(r => setTimeout(r, 700));
       Keyboard.dismiss();
       
-      // 📤 העברת כל הנתונים (הקודמים + החדשים) למסך הבא
       router.push({
         pathname: '/AllergiesScreen',
         params: {
-          // username מהמסך הראשון
           username,
-          // נתונים מהמסך הקודם
           firstName,
           lastName,
           birthDate,
           ageYears,
           sex,
-          // נתונים חדשים מהמסך הזה
           weight,
           height,
           waist,

@@ -22,6 +22,8 @@ import { routeToScreen } from 'expo-router/build/useScreens';
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 const BLOOD_KEY = 'BLOOD_TEST_LAST_UPLOAD';
+const TIME_FORMULA = 1000 * 60 * 60 * 24;
+const DAYS_IN_YEAR=365;
 
 const DAILY_TIPS: string[] = [
   'Add at least one colorful vegetable to every meal.',
@@ -52,15 +54,12 @@ export default function HomePage() {
   const col = useAppColors();
   const styles = useMemo(() => makeStyles(col), [col]);
 
-  // --- State ---
   const { hasSelection, loading: allergiesLoading } = useAllergies([]);
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
   const [bloodLoading, setBloodLoading] = useState(true);
   
-  // State לתפריט הצד
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // --- Effects ---
   useEffect(() => {
     const loadBloodDate = async () => {
       try {
@@ -89,10 +88,10 @@ export default function HomePage() {
     if (!lastBloodTest) return { icon: 'ellipse-outline', text: 'Not uploaded yet', color: col.subtitle };
 
     const now = new Date();
-    const diff = (now.getTime() - lastBloodTest.getTime()) / (1000 * 60 * 60 * 24);
+    const diff = (now.getTime() - lastBloodTest.getTime()) / TIME_FORMULA;
     const formatted = formatShortDate(lastBloodTest);
 
-    if (diff > 365) return { icon: 'alert-circle', text: `Outdated (${formatted})`, color: '#f97316' };
+    if (diff > DAYS_IN_YEAR) return { icon: 'alert-circle', text: `Outdated (${formatted})`, color: '#f97316' };
     return { icon: 'checkmark-circle', text: `Up to date (${formatted})`, color: '#22c55e' };
   }, [bloodLoading, lastBloodTest, col.subtitle]);
 

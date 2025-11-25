@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 export default function HelpScreen() {
   
   const handleContact = () => {
-    // פתיחת אפליקציית המייל
     Linking.openURL('mailto:support@healthcart.com');
   };
 
@@ -48,7 +47,6 @@ export default function HelpScreen() {
           </View>
         </View>
 
-        {/* כרטיס יצירת קשר */}
         <View style={styles.card}>
             <Text style={styles.cardTitle}>Still need help?</Text>
             <Text style={styles.text}>
