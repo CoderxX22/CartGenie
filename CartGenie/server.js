@@ -5,16 +5,17 @@ import cors from 'cors';
 
 // 1. ייבוא הראוטרים
 import authRouter from './src/routes/auth.js'; 
-// ---> הוסף את השורה הזו (ודא שהנתיב לקובץ נכון!):
 import userDataRouter from './src/routes/userDataRoutes.js'; 
-import productsRouter from './src/routes/products.js';
+import productsRouter from './src/routes/productRoute.js';
+// ייבוא הראוטר של ה-OCR (שים לב לשם הקובץ ברבים: ocrRoutes.js)
+import ocrRouter from './src/routes/ocrRoute.js';
 
 const app = express();
 
 app.use(cors({ origin: true }));
 app.use(express.json()); // חובה כדי לקרוא את המידע מהאפליקציה
 
-// מניעת אזהרות ngrok
+// מניעת אזהרות ngrok (רלוונטי לפיתוח)
 app.use((req, res, next) => {
     res.setHeader('ngrok-skip-browser-warning', 'true'); 
     next();
@@ -23,8 +24,9 @@ app.use((req, res, next) => {
 // 2. חיבור הראוטרים לנתיבים
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
-// ---> הוסף את השורה הזו. זה מחבר את הראוטר שלך לכתובת הנכונה:
 app.use('/api/userdata', userDataRouter);
+// חיבור נתיב ה-OCR
+app.use('/api/ocr', ocrRouter);
 
 const { MONGO_URI, PORT = 4000 } = process.env;
 

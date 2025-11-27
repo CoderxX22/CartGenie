@@ -1,17 +1,25 @@
-// src/models/Product.js
 import mongoose from 'mongoose';
 
-const ProductSchema = new mongoose.Schema(
-  {
-    smlmitzrach: { type: Number, index: true }, // код/штрихкод
-    shmmitzrach: String,                        // название на иврите
-    english_name: String,                       // название на английском
+const productSchema = new mongoose.Schema({
+  barcode: { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  brand: String,
+  image: String,
+  source: { type: String, default: 'user-upload' },
+  
+  // הרחבנו את אובייקט הערכים התזונתיים
+  nutrients: {
+    calories: { type: Number, default: 0 },       // קלוריות
+    protein: { type: Number, default: 0 },        // חלבונים
+    fat: { type: Number, default: 0 },            // שומנים
+    carbs: { type: Number, default: 0 },          // פחמימות
+    sugar: { type: Number, default: 0 },          // סוכרים
+    sodium: { type: Number, default: 0 },         // נתרן
+    dietaryFiber: { type: Number, default: 0 },   // סיבים תזונתיים
+    cholesterol: { type: Number, default: 0 }     // כולסטרול
   },
-  {
-    collection: 'mizrahim', // очень важно: имя коллекции как в Mongo
-    strict: false,          // остальные поля (все нутриенты) не режем
-  }
-);
+  
+  lastUpdated: { type: Date, default: Date.now }
+});
 
-export default mongoose.models.Product ||
-  mongoose.model('Product', ProductSchema);
+export default mongoose.model('Product', productSchema);
