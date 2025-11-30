@@ -1,16 +1,17 @@
+// src/hooks/useIllnesses.ts
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { getAllergies, saveAllergies } from '@/utils/allergiesStorage';
+import { getIllnesses, saveIllnesses } from '@/utils/illnessesStorage';
 
-export function useAllergies(allergens: string[]) {
+export function useIllnesses(illnessList: string[]) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [other, setOther] = useState('');
   const [loading, setLoading] = useState(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // load persisted on mount
+  // Загрузка сохранённых заболеваний при монтировании
   useEffect(() => {
     (async () => {
-      const stored = await getAllergies();
+      const stored = await getIllnesses();
       if (stored) {
         setSelected(new Set(stored.selected));
         setOther(stored.other ?? '');
@@ -19,12 +20,12 @@ export function useAllergies(allergens: string[]) {
     })();
   }, []);
 
-  // debounce persist on change
+  // Автосохранение при изменении
   useEffect(() => {
     if (loading) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void saveAllergies({
+      void saveIllnesses({
         selected: Array.from(selected),
         other,
       });
@@ -35,14 +36,14 @@ export function useAllergies(allergens: string[]) {
   }, [selected, other, loading]);
 
   const toggle = useCallback((item: string) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       next.has(item) ? next.delete(item) : next.add(item);
       return next;
     });
   }, []);
 
-  const selectAll = useCallback(() => setSelected(new Set(allergens)), [allergens]);
+  const selectAll = useCallback(() => setSelected(new Set(illnessList)), [illnessList]);
   const clearAll = useCallback(() => setSelected(new Set()), []);
 
   const selectionPreview = useMemo(() => {

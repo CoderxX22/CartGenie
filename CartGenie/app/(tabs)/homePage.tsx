@@ -16,7 +16,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import Navbar from '@/components/navBar';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
-import { useAllergies } from '@/hooks/useAllergies';
+import { useIllnesses } from '@/hooks/useIllnesses';
 import { routeToScreen } from 'expo-router/build/useScreens';
 
 const ACCENT = '#0096c7';
@@ -54,7 +54,7 @@ export default function HomePage() {
   const col = useAppColors();
   const styles = useMemo(() => makeStyles(col), [col]);
 
-  const { hasSelection, loading: allergiesLoading } = useAllergies([]);
+  const { hasSelection, loading: allergiesLoading } = useIllnesses([]);
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
   const [bloodLoading, setBloodLoading] = useState(true);
   

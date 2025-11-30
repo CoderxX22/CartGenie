@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAllergies } from '@/hooks/useAllergies';
+import { useIllnesses } from '@/hooks/useIllnesses';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
 type Mode = 'products' | 'facts' | 'news';
@@ -22,9 +22,9 @@ type ProductItem = {
   id: string;
   name: string;
   description: string;
-  allergens: string[];
+  recommendedFor: string[]; // болезни, при которых полезно
+  avoidFor: string[];       // болезни, при которых нежелательно
   tags: string[];
-  isAllergenFree: boolean;
 };
 
 type FactItem = {
@@ -47,9 +47,6 @@ const CARD_MAX = 520;
 const ACCENT = '#0096c7';
 
 // ---------- IMAGES FOR FUN FACTS ----------
-// Put your images here:
-// assets/images/facts/fact1.png ... fact10.png
-// If the folder is different, just adjust the paths below.
 const FACT_IMAGE_MAP = {
   fact1: require('../assets/images/facts/fact1.png'),
   fact2: require('../assets/images/facts/fact2.png'),
@@ -64,260 +61,149 @@ const FACT_IMAGE_MAP = {
 } as const;
 
 // ---------- DATA: PRODUCTS ----------
-
+// Каждому продукту задаём, при каких болезнях он полезен или нежелателен.
 const PRODUCT_ITEMS: ProductItem[] = [
   {
     id: 'p1',
-    name: 'Whole cow’s milk',
-    description: 'Rich in calcium and protein but contains the milk allergen.',
-    allergens: ['Milk'],
-    tags: ['dairy', 'high-calcium'],
-    isAllergenFree: false,
+    name: 'Oatmeal (unsweetened)',
+    description: 'Rich in fiber, helps control blood sugar and cholesterol levels.',
+    recommendedFor: ['Diabetes Type 2', 'High cholesterol', 'Obesity'],
+    avoidFor: ['Celiac disease (Gluten intolerance)'],
+    tags: ['fiber', 'breakfast', 'whole-grain'],
   },
   {
     id: 'p2',
-    name: 'Cheddar cheese',
-    description: 'Aged cheese made from cow’s milk, a common dairy allergen source.',
-    allergens: ['Milk'],
-    tags: ['dairy'],
-    isAllergenFree: false,
+    name: 'Grilled salmon',
+    description: 'Excellent source of omega-3 fats, supports heart health.',
+    recommendedFor: ['Heart disease (Cardiovascular)', 'High cholesterol'],
+    avoidFor: ['Gout (Uric acid buildup)'],
+    tags: ['fish', 'protein', 'omega-3'],
   },
   {
     id: 'p3',
-    name: 'Fruit yogurt (sweetened)',
-    description: 'Flavored yogurt with added sugar, contains dairy (milk).',
-    allergens: ['Milk'],
-    tags: ['dairy', 'sweetened'],
-    isAllergenFree: false,
+    name: 'White bread',
+    description: 'Refined carbohydrate that can spike blood sugar levels.',
+    recommendedFor: [],
+    avoidFor: ['Diabetes Type 2', 'Obesity', 'Celiac disease (Gluten intolerance)'],
+    tags: ['refined', 'bread'],
   },
   {
     id: 'p4',
-    name: 'Whole wheat bread',
-    description: 'Bread made with wheat flour; contains gluten and cereal allergens.',
-    allergens: ['Cereals containing gluten'],
-    tags: ['grains', 'wheat'],
-    isAllergenFree: false,
+    name: 'Low-fat yogurt',
+    description: 'Contains probiotics and calcium but includes dairy.',
+    recommendedFor: ['Irritable bowel syndrome (IBS)', 'Osteoporosis'],
+    avoidFor: ['Lactose intolerance'],
+    tags: ['dairy', 'probiotic'],
   },
   {
     id: 'p5',
-    name: 'Chicken eggs',
-    description: 'Boiled or scrambled eggs; a classic egg allergen source.',
-    allergens: ['Eggs'],
-    tags: ['protein', 'breakfast'],
-    isAllergenFree: false,
+    name: 'Red meat (steak)',
+    description: 'High in protein and iron but may raise uric acid and cholesterol.',
+    recommendedFor: ['Anemia (Iron deficiency)'],
+    avoidFor: ['Gout (Uric acid buildup)', 'High cholesterol'],
+    tags: ['protein', 'iron'],
   },
   {
     id: 'p6',
-    name: 'Peanut butter',
-    description: 'Spread made from ground peanuts; often involved in severe reactions.',
-    allergens: ['Peanuts'],
-    tags: ['nuts', 'spread', 'high-protein'],
-    isAllergenFree: false,
+    name: 'Brown rice',
+    description: 'Whole grain source of complex carbs and fiber.',
+    recommendedFor: ['Diabetes Type 2', 'Obesity'],
+    avoidFor: ['Irritable bowel syndrome (IBS)'],
+    tags: ['whole-grain', 'fiber'],
   },
   {
     id: 'p7',
-    name: 'Roasted almonds',
-    description: 'Tree nut snack; must be avoided with tree nut allergy.',
-    allergens: ['Tree nuts'],
-    tags: ['nuts', 'snack'],
-    isAllergenFree: false,
+    name: 'Banana',
+    description: 'Rich in potassium, supports heart and blood pressure control.',
+    recommendedFor: ['High blood pressure (Hypertension)', 'Depression / Anxiety (affecting appetite)'],
+    avoidFor: ['Diabetes Type 2'],
+    tags: ['fruit', 'potassium'],
   },
   {
     id: 'p8',
-    name: 'Soy sauce',
-    description: 'Fermented condiment that usually contains soy and wheat (gluten).',
-    allergens: ['Soybeans', 'Cereals containing gluten'],
-    tags: ['soy', 'condiment'],
-    isAllergenFree: false,
+    name: 'Coffee (black)',
+    description: 'May boost alertness but can irritate stomach and raise blood pressure.',
+    recommendedFor: [],
+    avoidFor: ['High blood pressure (Hypertension)', 'Gastric ulcer (Stomach ulcer)'],
+    tags: ['caffeine', 'drink'],
   },
   {
     id: 'p9',
-    name: 'Grilled salmon fillet',
-    description: 'Oily fish rich in omega-3 fats; allergenic for people with fish allergy.',
-    allergens: ['Fish'],
-    tags: ['fish', 'omega-3'],
-    isAllergenFree: false,
+    name: 'Olive oil (extra virgin)',
+    description: 'Healthy fat that supports cardiovascular health.',
+    recommendedFor: ['Heart disease (Cardiovascular)', 'High cholesterol'],
+    avoidFor: [],
+    tags: ['healthy fat', 'oil'],
   },
   {
     id: 'p10',
-    name: 'Cooked shrimp',
-    description: 'Crustacean shellfish; a frequent cause of adult food allergies.',
-    allergens: ['Crustaceans'],
-    tags: ['shellfish'],
-    isAllergenFree: false,
-  },
-  // Low-allergen items (assuming no cross-contact and no added sauces)
-  {
-    id: 'p11',
-    name: 'Fresh apple',
-    description: 'Whole fruit with fiber and natural sugars, usually free of major allergens.',
-    allergens: [],
-    tags: ['fruit', 'snack'],
-    isAllergenFree: true,
-  },
-  {
-    id: 'p12',
-    name: 'Banana',
-    description: 'Soft, energy-dense fruit often used in low-allergy menus.',
-    allergens: [],
-    tags: ['fruit', 'potassium'],
-    isAllergenFree: true,
-  },
-  {
-    id: 'p13',
-    name: 'Raw carrot sticks',
-    description: 'Crunchy vegetable snack, typically low in allergenic potential.',
-    allergens: [],
-    tags: ['vegetable', 'snack'],
-    isAllergenFree: true,
-  },
-  {
-    id: 'p14',
-    name: 'Steamed broccoli florets',
-    description: 'Non-starchy vegetable rich in vitamin C and fiber.',
-    allergens: [],
-    tags: ['vegetable'],
-    isAllergenFree: true,
-  },
-  {
-    id: 'p15',
-    name: 'Plain cooked white rice',
-    description: 'Simple carbohydrate source, often used in elimination diets.',
-    allergens: [],
-    tags: ['grain', 'neutral'],
-    isAllergenFree: true,
+    name: 'Processed sausage',
+    description: 'High in salt and saturated fat, increases cardiovascular risk.',
+    recommendedFor: [],
+    avoidFor: ['Heart disease (Cardiovascular)', 'High blood pressure (Hypertension)'],
+    tags: ['processed', 'fatty'],
   },
 ];
 
 // ---------- DATA: FUN FACTS ----------
-
 const FACT_ITEMS: FactItem[] = [
   {
     id: 'f1',
-    title: 'Fiber feeds your microbiome',
-    text: 'Dietary fiber from whole grains, fruits and vegetables is fermented by gut bacteria into short-chain fatty acids that support gut and immune health.',
-    imageKey: 'fact1',
-  },
-  {
-    id: 'f2',
-    title: 'Protein helps you feel full longer',
-    text: 'Meals higher in protein tend to increase satiety, which can help reduce snacking and support weight management.',
-    imageKey: 'fact2',
-  },
-  {
-    id: 'f3',
-    title: 'Not all fats are equal',
-    text: 'Unsaturated fats from nuts, seeds, olive oil and fatty fish may support heart health, while trans fats increase cardiovascular risk.',
+    title: 'Healthy fats can protect your heart',
+    text: 'Olive oil, nuts, and fatty fish provide omega-3 and omega-9 fatty acids that lower inflammation and improve heart function.',
     imageKey: 'fact3',
   },
   {
-    id: 'f4',
-    title: 'Colorful plates, diverse nutrients',
-    text: 'Different colors in fruits and vegetables often mean different antioxidants and phytochemicals. “Eat the rainbow” is a simple diversity rule.',
-    imageKey: 'fact4',
-  },
-  {
-    id: 'f5',
-    title: 'Liquid calories are easy to overlook',
-    text: 'Sugary drinks can add a lot of calories and sugar without triggering the same fullness as solid foods.',
-    imageKey: 'fact5',
-  },
-  {
-    id: 'f6',
-    title: 'Whole grains vs. refined grains',
-    text: 'Whole grains keep the bran and germ, preserving fiber, vitamins and minerals that are removed in refined flour.',
+    id: 'f2',
+    title: 'Complex carbs release energy slowly',
+    text: 'Whole grains and legumes help stabilize blood sugar and prevent energy crashes during the day.',
     imageKey: 'fact6',
   },
   {
-    id: 'f7',
-    title: 'Vitamin C helps iron absorption',
-    text: 'Combining plant-based iron sources with vitamin C–rich foods can improve iron absorption from the meal.',
-    imageKey: 'fact7',
-  },
-  {
-    id: 'f8',
-    title: 'Sleep and diet are connected',
-    text: 'Poor sleep is associated with higher cravings for sugary and high-fat foods, affecting long-term diet quality.',
-    imageKey: 'fact8',
-  },
-  {
-    id: 'f9',
-    title: 'Hydration affects appetite',
-    text: 'Drinking water before meals can modestly reduce calorie intake for some people by improving fullness.',
+    id: 'f3',
+    title: 'Stay hydrated for kidney health',
+    text: 'Water helps the kidneys filter waste effectively and prevent kidney stones.',
     imageKey: 'fact9',
-  },
-  {
-    id: 'f10',
-    title: 'Ultra-processed foods and health',
-    text: 'Diets high in ultra-processed foods are linked to higher risks of obesity, heart disease and some cancers in observational studies.',
-    imageKey: 'fact10',
   },
 ];
 
 // ---------- DATA: NEWS ----------
-
 const NEWS_ITEMS: NewsItem[] = [
   {
     id: 'n1',
-    title: 'Mediterranean diet linked to lower heart disease risk',
-    source: 'Cardiovascular research',
-    date: '2023',
+    title: 'Dietary changes reduce risk of type 2 diabetes',
+    source: 'The Lancet',
+    date: '2024',
     summary:
-      'Observational studies show that a Mediterranean-style pattern rich in olive oil, vegetables, legumes and fish is associated with reduced cardiovascular risk.',
-    url: 'https://www.nejm.org/doi/full/10.1056/NEJMoa1800389',
+      'Research shows that replacing refined carbs with high-fiber foods can lower the risk of developing type 2 diabetes.',
+    url: 'https://www.thelancet.com/',
   },
   {
     id: 'n2',
-    title: 'Ultra-processed foods and weight gain',
-    source: 'Clinical trial',
-    date: '2019',
+    title: 'Omega-3 intake improves mental well-being',
+    source: 'Nature Medicine',
+    date: '2023',
     summary:
-      'In a controlled trial, participants eating ultra-processed foods consumed more calories and gained more weight than when eating unprocessed foods.',
-    url: 'https://www.cell.com/cell-metabolism/fulltext/S1550-4131(19)30248-7',
-  },
-  {
-    id: 'n3',
-    title: 'Plant-based diets and type 2 diabetes risk',
-    source: 'Epidemiology',
-    date: '2021',
-    summary:
-      'Large cohort analyses suggest that higher adherence to healthy plant-based dietary patterns is linked to a lower risk of type 2 diabetes.',
-    url: 'https://www.bmj.com/content/366/bmj.l3809',
-  },
-  {
-    id: 'n4',
-    title: 'Early introduction of allergens in infants',
-    source: 'Allergy research',
-    date: '2015–2020',
-    summary:
-      'Randomized trials have shown that early introduction of peanut in high-risk infants can reduce the development of peanut allergy.',
-    url: 'https://www.nejm.org/doi/full/10.1056/NEJMoa1414850',
-  },
-  {
-    id: 'n5',
-    title: 'Personalized nutrition from blood markers',
-    source: 'Precision nutrition',
-    date: '2020',
-    summary:
-      'Emerging work in precision nutrition uses glucose responses, blood lipids and microbiome profiles to tailor diet recommendations.',
-    url: 'https://www.cell.com/cell/fulltext/S0092-8674(15)01481-6',
+      'Studies indicate that higher omega-3 intake supports brain health and reduces symptoms of depression and anxiety.',
+    url: 'https://www.nature.com/',
   },
 ];
 
+// ---------- MODES ----------
 const MODES: { id: Mode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'products', label: 'Products', icon: 'cart-outline' },
-  { id: 'facts', label: 'Fun Facts', icon: 'bulb-outline' },
+  { id: 'facts', label: 'Health Facts', icon: 'bulb-outline' },
   { id: 'news', label: 'News', icon: 'newspaper-outline' },
 ];
 
 // ---------- SCREEN ----------
-
 export default function Discover() {
   const col = useAppColors();
   const insets = useSafeAreaInsets();
 
-  const { selected } = useAllergies([]);
-  const selectedAllergens = React.useMemo(
+  // 🩺 подключаем болезни вместо аллергий
+  const { selected } = useIllnesses([]);
+  const selectedIllnesses = React.useMemo(
     () => new Set(Array.from(selected)),
     [selected]
   );
@@ -334,11 +220,12 @@ export default function Discover() {
     );
   }, [query]);
 
-  const isAllergySafe = (item: ProductItem) =>
-    item.allergens.every((a) => !selectedAllergens.has(a));
+  const isSuitable = (item: ProductItem) => {
+    const hasConflict = item.avoidFor.some((ill) => selectedIllnesses.has(ill));
+    return !hasConflict;
+  };
 
-  // --- RENDER BLOCKS ---
-
+  // ---------- Render products ----------
   const renderProducts = () => (
     <>
       <View style={styles.searchRow}>
@@ -349,16 +236,15 @@ export default function Discover() {
           placeholderTextColor={col.subtitle}
           value={query}
           onChangeText={setQuery}
-          returnKeyType="search"
         />
       </View>
 
       <View style={styles.list}>
         {filteredProducts.map((item) => {
-          const safe = isAllergySafe(item);
-          const badgeBg = item.isAllergenFree || safe ? '#DCFCE7' : '#FEE2E2';
-          const badgeBorder = item.isAllergenFree || safe ? '#22C55E' : '#EF4444';
-          const badgeColor = item.isAllergenFree || safe ? '#16A34A' : '#DC2626';
+          const suitable = isSuitable(item);
+          const badgeBg = suitable ? '#DCFCE7' : '#FEE2E2';
+          const badgeBorder = suitable ? '#22C55E' : '#EF4444';
+          const badgeColor = suitable ? '#16A34A' : '#DC2626';
 
           return (
             <View key={item.id} style={styles.card}>
@@ -371,20 +257,20 @@ export default function Discover() {
                   ]}
                 >
                   <Text style={[styles.badgeText, { color: badgeColor }]}>
-                    {item.isAllergenFree
-                      ? 'Allergen-free (major allergens)'
-                      : safe
-                      ? 'Allergy-safe for your profile'
-                      : 'Contains allergens you avoid'}
+                    {suitable ? 'Suitable for your health profile' : 'Not recommended'}
                   </Text>
                 </View>
               </View>
-
               <Text style={styles.description}>{item.description}</Text>
 
-              {item.allergens.length > 0 && (
+              {item.avoidFor.length > 0 && (
                 <Text style={styles.allergens}>
-                  Allergens: {item.allergens.join(', ')}
+                  Not recommended for: {item.avoidFor.join(', ')}
+                </Text>
+              )}
+              {item.recommendedFor.length > 0 && (
+                <Text style={styles.recommended}>
+                  Recommended for: {item.recommendedFor.join(', ')}
                 </Text>
               )}
             </View>
@@ -397,11 +283,6 @@ export default function Discover() {
             <Text style={styles.emptyText}>No products found. Try another search.</Text>
           </View>
         )}
-
-        <Text style={styles.disclaimer}>
-          Disclaimer: Always double-check food labels and consult your healthcare provider
-          for personalized allergy advice.
-        </Text>
       </View>
     </>
   );
@@ -416,15 +297,9 @@ export default function Discover() {
         return (
           <View key={fact.id} style={styles.card}>
             {src && (
-              <Image
-                source={src}
-                style={styles.factImage}
-                resizeMode="cover"
-              />
+              <Image source={src} style={styles.factImage} resizeMode="cover" />
             )}
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>{fact.title}</Text>
-            </View>
+            <Text style={styles.cardTitle}>{fact.title}</Text>
             <Text style={styles.description}>{fact.text}</Text>
           </View>
         );
@@ -454,8 +329,7 @@ export default function Discover() {
     </View>
   );
 
-  // --- MAIN RENDER ---
-
+  // ---------- MAIN ----------
   return (
     <>
       <Stack.Screen options={{ title: 'Discover' }} />
@@ -464,28 +338,22 @@ export default function Discover() {
           styles.screen,
           {
             paddingTop: insets.top + 8,
-            paddingBottom: insets.bottom + 72, // space for navbar
+            paddingBottom: insets.bottom + 72,
           },
         ]}
       >
-        <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* BIG COMPASS ICON */}
+        <ScrollView contentContainerStyle={styles.container}>
           <Ionicons
             name="compass-outline"
             size={46}
             color={col.text}
             style={{ alignSelf: 'center', marginBottom: 4 }}
           />
-
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>
-            Explore products, fun nutrition facts, and recent news about healthy eating.
+            Explore products, health facts, and nutrition news tailored to your conditions.
           </Text>
 
-          {/* Mode selector */}
           <View style={styles.modeRow}>
             {MODES.map((m) => {
               const active = mode === m.id;
@@ -494,7 +362,6 @@ export default function Discover() {
                   key={m.id}
                   style={[styles.modeBtn, active && styles.modeBtnActive]}
                   onPress={() => setMode(m.id)}
-                  activeOpacity={0.9}
                 >
                   <Ionicons
                     name={m.icon}
@@ -520,14 +387,10 @@ export default function Discover() {
 }
 
 // ---------- STYLES ----------
-
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
-    container: {
-      paddingHorizontal: 20,
-      paddingBottom: 16,
-    },
+    container: { paddingHorizontal: 20, paddingBottom: 16 },
     title: {
       fontSize: 22,
       fontWeight: '800',
@@ -541,7 +404,6 @@ const makeStyles = (c: AppColors) =>
       marginTop: 4,
       marginBottom: 14,
     },
-
     modeRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -563,17 +425,8 @@ const makeStyles = (c: AppColors) =>
       borderColor: ACCENT,
       backgroundColor: '#E9F6FB',
     },
-    modeText: {
-      fontSize: 13,
-      color: c.subtitle,
-      fontWeight: '600',
-    },
-    modeTextActive: {
-      color: '#0F172A',
-      fontWeight: '800',
-    },
-
-    // Products
+    modeText: { fontSize: 13, color: c.subtitle, fontWeight: '600' },
+    modeTextActive: { color: '#0F172A', fontWeight: '800' },
     searchRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -586,17 +439,8 @@ const makeStyles = (c: AppColors) =>
       marginBottom: 10,
       gap: 8,
     },
-    searchInput: {
-      flex: 1,
-      color: c.text,
-      padding: 0,
-      margin: 0,
-    },
-    list: {
-      alignItems: 'center',
-      gap: 12,
-      paddingBottom: 16,
-    },
+    searchInput: { flex: 1, color: c.text, padding: 0, margin: 0 },
+    list: { alignItems: 'center', gap: 12, paddingBottom: 16 },
     card: {
       width: '100%',
       maxWidth: CARD_MAX,
@@ -627,41 +471,23 @@ const makeStyles = (c: AppColors) =>
       flex: 1,
       marginRight: 8,
     },
-    description: {
-      marginTop: 6,
-      fontSize: 13,
-      color: c.text,
-    },
-    allergens: {
-      marginTop: 6,
-      fontSize: 12,
-      color: '#b91c1c',
-    },
+    description: { marginTop: 6, fontSize: 13, color: c.text },
+    allergens: { marginTop: 6, fontSize: 12, color: '#b91c1c' },
+    recommended: { marginTop: 4, fontSize: 12, color: '#15803d' },
     badge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 999,
       borderWidth: 1,
     },
-    badgeText: {
-      fontSize: 11,
-      fontWeight: '700',
-    },
-
-    // Fun facts
+    badgeText: { fontSize: 11, fontWeight: '700' },
     factImage: {
       width: '100%',
       height: 140,
       borderRadius: 12,
       marginBottom: 8,
     },
-
-    // News
-    newsMeta: {
-      marginTop: 4,
-      fontSize: 11,
-      color: c.subtitle,
-    },
+    newsMeta: { marginTop: 4, fontSize: 11, color: c.subtitle },
     newsLinkBtn: {
       marginTop: 10,
       alignSelf: 'flex-start',
@@ -675,13 +501,7 @@ const makeStyles = (c: AppColors) =>
       borderColor: c.inputBorder,
       backgroundColor: '#E5E9F5',
     },
-    newsLinkText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: '#0F172A',
-    },
-
-    // Empty / misc
+    newsLinkText: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
     emptyBox: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -693,11 +513,5 @@ const makeStyles = (c: AppColors) =>
       fontSize: 13,
       textAlign: 'center',
       paddingHorizontal: 12,
-    },
-    disclaimer: {
-      marginTop: 4,
-      fontSize: 11,
-      color: c.subtitle,
-      textAlign: 'center',
     },
   });
