@@ -19,14 +19,15 @@ export const saveUserData = async (req, res) => {
       height,
       waist,
       bmi,
-      // Allergies
-      allergies,
-      otherAllergies,
-      allergySeverity,
+      whtr,
+      // Medical Conditions (מחלות)
+      illnesses,
+      otherIllnesses,
       // Blood Test (optional)
       bloodTest
     } = req.body;
 
+    // בדיקת שדות חובה
     const requiredFields = ['username', 'firstName', 'lastName', 'birthDate', 'sex', 'weight', 'height', 'waist', 'bmi'];
     const missing = requiredFields.filter(field => !req.body[field]);
 
@@ -37,37 +38,27 @@ export const saveUserData = async (req, res) => {
         message: `Missing required fields: ${missing.join(', ')}` 
       });
     }
-    // המרת allergies מ-JSON string אם צריך
-    let parsedAllergies = [];
-    let parsedSeverity = {};
 
-    if (allergies) {
+    // עיבוד רשימת המחלות (Illnesses)
+    let parsedIllnesses = [];
+    
+    if (illnesses) {
       try {
-        parsedAllergies = typeof allergies === 'string' 
-          ? JSON.parse(allergies) 
-          : allergies;
+        parsedIllnesses = typeof illnesses === 'string' 
+          ? JSON.parse(illnesses) 
+          : illnesses;
       } catch (e) {
-        parsedAllergies = [];
+        parsedIllnesses = [];
       }
     }
 
-    if (allergySeverity) {
-      try {
-        parsedSeverity = typeof allergySeverity === 'string'
-          ? JSON.parse(allergySeverity)
-          : allergySeverity;
-      } catch (e) {
-        parsedSeverity = {};
-      }
-    }
-
-    // בניית מערך אלרגיות עם חומרה
-    const allergiesArray = parsedAllergies.map(allergen => ({
-      allergen,
-      severity: parsedSeverity[allergen] || 'moderate'
+    // בניית מערך מחלות למבנה הסכמה
+    const illnessesArray = parsedIllnesses.map(illnessName => ({
+      name: illnessName,
+      severity: 'moderate' // ערך ברירת מחדל
     }));
 
-    // בניית אובייקט הנתונים
+    // בניית אובייקט הנתונים המלא לשמירה/עדכון
     const userData = {
       username: username.toLowerCase().trim(),
       personalDetails: {
@@ -81,22 +72,35 @@ export const saveUserData = async (req, res) => {
         weight: parseFloat(weight),
         height: parseFloat(height),
         waist: parseFloat(waist),
-        bmi: parseFloat(bmi)
+        bmi: parseFloat(bmi),
+        whtr: whtr ? parseFloat(whtr) : 0
       },
       medicalData: {
-        allergies: allergiesArray,
-        otherAllergies: otherAllergies?.trim() || ''
+        illnesses: illnessesArray,
+        otherIllnesses: otherIllnesses?.trim() || ''
       },
       bloodTest: bloodTest || {},
-      isCompleted: !!bloodTest?.fileName
+      // אם יש שם קובץ, סימן שהתהליך הושלם
+      isCompleted: !!bloodTest?.fileName 
     };
 
-    // חיפוש נתונים קיימים או יצירת חדשים
+    // חיפוש האם המשתמש כבר קיים
     let userDataDoc = await UserData.findOne({ username: userData.username });
 
     if (userDataDoc) {
-      // עדכון נתונים קיימים
-      Object.assign(userDataDoc, userData);
+      // עדכון משתמש קיים
+      userDataDoc.personalDetails = userData.personalDetails;
+      userDataDoc.bodyMeasurements = userData.bodyMeasurements;
+      userDataDoc.medicalData = userData.medicalData;
+      
+      // עדכון בדיקות דם רק אם נשלח מידע חדש
+      if (bloodTest && Object.keys(bloodTest).length > 0) {
+        userDataDoc.bloodTest = userData.bloodTest;
+      }
+      
+      // בדיקת השלמה (ניתן להשתמש גם במתודה של המודל)
+      if (userData.isCompleted) userDataDoc.isCompleted = true;
+
       await userDataDoc.save();
       
       return res.json({ 
@@ -169,7 +173,7 @@ export const getUserData = async (req, res) => {
 };
 
 /**
- * עדכון תוצאות בדיקות דם
+ * עדכון תוצאות בדיקות דם בלבד
  * PATCH /api/userdata/blood-test
  */
 export const updateBloodTest = async (req, res) => {
@@ -203,7 +207,9 @@ export const updateBloodTest = async (req, res) => {
       status: 'uploaded'
     };
 
+    // סימון שהפרופיל הושלם מכיוון שיש בדיקת דם
     userData.isCompleted = true;
+    
     await userData.save();
 
     res.json({ 
@@ -264,7 +270,7 @@ export const deleteUserData = async (req, res) => {
 };
 
 /**
- * קבלת כל המשתמשים (למטרות ניהול)
+ * קבלת כל המשתמשים (למטרות ניהול/אדמין)
  * GET /api/userdata/all
  */
 export const getAllUserData = async (req, res) => {
@@ -274,7 +280,7 @@ export const getAllUserData = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const users = await UserData.find()
-      .select('-__v')
+      .select('-__v') // הסתרת שדה הגרסה של מונגו
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });

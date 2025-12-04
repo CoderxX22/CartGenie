@@ -54,7 +54,7 @@ export default function HomePage() {
   const col = useAppColors();
   const styles = useMemo(() => makeStyles(col), [col]);
 
-  const { hasSelection, loading: allergiesLoading } = useIllnesses([]);
+  const { hasSelection, loading: illnessesLoading } = useIllnesses([]);
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
   const [bloodLoading, setBloodLoading] = useState(true);
   
@@ -220,12 +220,12 @@ export default function HomePage() {
             </View>
             <View style={styles.statusRow}>
               <Ionicons
-                name={allergiesLoading ? 'ellipse-outline' : hasSelection ? 'checkmark-circle' : 'alert-circle'}
+                name={illnessesLoading ? 'ellipse-outline' : hasSelection ? 'checkmark-circle' : 'alert-circle'}
                 size={18}
-                color={allergiesLoading ? col.subtitle : hasSelection ? '#22c55e' : '#f97316'}
+                color={illnessesLoading ? col.subtitle : hasSelection ? '#22c55e' : '#f97316'}
               />
               <Text style={styles.statusText}>
-                {allergiesLoading ? 'Loading...' : hasSelection ? 'Allergies saved' : 'Allergies missing'}
+                {illnessesLoading ? 'Loading...' : hasSelection ? 'Allergies saved' : 'Allergies missing'}
               </Text>
             </View>
             <View style={styles.statusRow}>

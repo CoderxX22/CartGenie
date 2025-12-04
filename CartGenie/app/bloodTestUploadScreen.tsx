@@ -33,6 +33,7 @@ export default function BloodTestUploadScreen() {
     height,
     waist,
     bmi,
+    whtr
   } = params;
 
   const [isSaving, setIsSaving] = useState(false);
@@ -75,7 +76,7 @@ export default function BloodTestUploadScreen() {
           text: 'Continue',
           onPress: () =>
             router.push({
-              pathname: '/illnessesScreen', // ✅ после успешной загрузки — тоже сюда
+              pathname: '/illnessesScreen',
               params: {
                 username,
                 firstName,
@@ -87,6 +88,7 @@ export default function BloodTestUploadScreen() {
                 height,
                 waist,
                 bmi,
+                whtr
               },
             }),
         },

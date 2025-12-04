@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
@@ -9,11 +9,13 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIllnesses } from '@/hooks/useIllnesses';
+import { API_URL } from '@/src/config/api';
 
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
@@ -44,35 +46,134 @@ const ILLNESSES = [
 export default function IllnessesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  
+  // 📥 קליטת כל הנתונים מהמסכים הקודמים
   const params = useLocalSearchParams();
+  const { 
+    username, 
+    firstName, 
+    lastName, 
+    birthDate, 
+    ageYears, 
+    sex,
+    height, 
+    weight,
+    waist,
+    bmi, 
+    whtr 
+  } = params;
 
+  // --- שימוש ב-Hook המתוקן (במקום State מקומי) ---
   const {
-    loading,
     selected,
     other,
     setOther,
     toggle,
     clearAll,
-    selectionPreview,
     hasSelection,
+    loading 
   } = useIllnesses(ILLNESSES);
 
-  const [query, setQuery] = React.useState('');
-  const filtered = React.useMemo(() => {
+  const [query, setQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // עטיפה לפונקציות של ה-Hook כדי להוסיף Haptics
+  const handleToggle = (item: string) => {
+    toggle(item);
+    Haptics.selectionAsync();
+  };
+
+  const handleClearAll = () => {
+    clearAll();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+  // ------------------------------------------
+
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return ILLNESSES;
     return ILLNESSES.filter((a) => a.toLowerCase().includes(q));
   }, [query]);
 
+  // פונקציה ראשית לשמירה בשרת MongoDB
+  const saveDataAndNavigate = async (illnessesList: string[], otherText: string) => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        username: username || '',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        birthDate: birthDate || '',
+        sex: sex || '',
+        ageYears: ageYears ? String(ageYears) : '0',
+        weight: weight ? String(weight) : '0',
+        height: height ? String(height) : '0',
+        waist: waist ? String(waist) : '0',
+        bmi: bmi ? String(bmi) : '0',
+        illnesses: illnessesList,
+        otherIllnesses: otherText,
+        whtr: whtr ? String(whtr) : '0'
+      };
+
+      // הכתובת היא של ה-API Endpoint ולא של ה-Collection
+      // הוספנו /save כי כך מוגדר בקובץ הראוטר ששלחת: router.post('/save', ...)
+      const endpoint = `${API_URL}/api/userdata/save`;
+      
+      console.log(`📤 Sending data to Server Function: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error('❌ Server returned non-JSON response:', responseText.slice(0, 500));
+        throw new Error(`Server returned unexpected response (likely HTML). Status: ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(result.message || `Server Error: ${response.status}`);
+      }
+
+      console.log('✅ Data saved successfully via API:', result);
+
+      router.push({
+        pathname: '/(tabs)/homePage',
+        params: {
+          ...params,
+          illnesses: JSON.stringify(illnessesList),
+          otherIllnesses: otherText,
+        },
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error saving profile:', error);
+      Alert.alert(
+        'Save Error', 
+        error.message || 'Could not save your profile. Please check your connection and server URL.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const confirmNothing = () => {
     Alert.alert(
-      'No illnesses?',
-      'This will clear your selection and continue.',
+      'No conditions?',
+      'This will confirm you have no known health conditions.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Continue',
-          style: 'destructive',
+          text: 'Confirm & Save',
+          style: 'default',
           onPress: handleNothingPress,
         },
       ],
@@ -80,31 +181,28 @@ export default function IllnessesScreen() {
     );
   };
 
-  // 👉 Теперь кнопка "Nothing" ведёт на HomePage
   const handleNothingPress = async () => {
-    Haptics.selectionAsync();
-    router.push({
-      pathname: '/(tabs)/homePage',
-      params: {
-        ...params,
-        illnesses: JSON.stringify([]),
-        otherIllnesses: '',
-      },
-    });
+    await Haptics.selectionAsync();
+    const emptyList: string[] = []; 
+    await saveDataAndNavigate(emptyList, '');
   };
 
-  // 👉 И кнопка "Continue" — тоже на HomePage
   const handleContinue = async () => {
-    Haptics.selectionAsync();
-    router.push({
-      pathname: '/(tabs)/homePage',
-      params: {
-        ...params,
-        illnesses: JSON.stringify(Array.from(selected)),
-        otherIllnesses: other.trim(),
-      },
-    });
+    if (isSaving) return;
+    await Haptics.selectionAsync();
+    const currentList = Array.from(selected);
+    const currentOther = other.trim();
+    
+    await saveDataAndNavigate(currentList, currentOther);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, styles.container]}>
+        <ActivityIndicator size="large" color={ACCENT} />
+      </View>
+    );
+  }
 
   return (
     <>
@@ -139,7 +237,7 @@ export default function IllnessesScreen() {
                 style={[styles.pillButton, styles.pillPrimary]}
                 activeOpacity={0.9}
                 onPress={confirmNothing}
-                disabled={loading}
+                disabled={isSaving}
               >
                 <Ionicons name="checkmark-done" size={16} color="#fff" />
                 <Text style={styles.pillPrimaryText}>Nothing</Text>
@@ -147,9 +245,9 @@ export default function IllnessesScreen() {
 
               <TouchableOpacity
                 style={styles.pillButton}
-                onPress={clearAll}
+                onPress={handleClearAll}
                 activeOpacity={0.9}
-                disabled={loading}
+                disabled={isSaving}
               >
                 <Ionicons
                   name="close-circle-outline"
@@ -178,9 +276,9 @@ export default function IllnessesScreen() {
                   <TouchableOpacity
                     key={item}
                     style={[styles.chip, isOn ? styles.chipOn : styles.chipOff]}
-                    onPress={() => toggle(item)}
+                    onPress={() => handleToggle(item)}
                     activeOpacity={0.9}
-                    disabled={loading}
+                    disabled={isSaving}
                   >
                     <Text
                       style={[
@@ -211,23 +309,32 @@ export default function IllnessesScreen() {
                 onChangeText={setOther}
                 maxLength={80}
                 onBlur={() => setOther(other.trim())}
-                editable={!loading}
+                editable={!isSaving}
               />
             </View>
 
             <TouchableOpacity
-              style={[styles.cta, !hasSelection && { opacity: 0.6 }]}
+              style={[styles.cta, (!hasSelection || isSaving) && { opacity: 0.6 }]}
               onPress={handleContinue}
-              disabled={!hasSelection || loading}
+              disabled={!hasSelection || isSaving}
               activeOpacity={0.92}
             >
-              <Text style={styles.ctaText}>Continue</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
+              {isSaving ? (
+                <>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={[styles.ctaText, { marginLeft: 8 }]}>Saving Profile...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.ctaText}>Finish & Save</Text>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color="#fff"
+                    style={{ marginLeft: 8 }}
+                  />
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
   Text,
@@ -19,6 +19,15 @@ const CARD_MAX = 520;
 export default function BodyMeasuresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  // 📥 קבלת הנתונים מהמסך הקודם (PersonalDetails)
+  const params = useLocalSearchParams();
+  const { username, firstName, lastName, birthDate, ageYears, sex } = params;
+
+  useEffect(() => {
+    // בדיקה שהנתונים עברו (לצורך דיבוג)
+    console.log('📋 Data received from PersonalDetails:', { username, firstName, lastName });
+  }, []);
 
   const [height, setHeight] = React.useState('');
   const [weight, setWeight] = React.useState('');
@@ -65,7 +74,25 @@ export default function BodyMeasuresScreen() {
   }, [whtr]);
 
   const handleContinue = () => {
-    router.push('/bloodTestUploadScreen');
+    // 📤 איחוד כל הנתונים ושליחה למסך הבא
+    router.push({
+      pathname: '/bloodTestUploadScreen',
+      params: {
+        // נתונים היסטוריים
+        username,
+        firstName,
+        lastName,
+        birthDate,
+        ageYears,
+        sex,
+        // נתונים חדשים
+        height,
+        weight,
+        waist, // אופציונלי - יכול להיות ריק
+        bmi: bmi ? bmi.toFixed(2) : '',
+        whtr: whtr ? whtr.toFixed(2) : '',
+      },
+    });
   };
 
   return (
@@ -84,6 +111,12 @@ export default function BodyMeasuresScreen() {
         >
           <View style={styles.card}>
             <Text style={styles.title}>Enter Your Body Measures</Text>
+            
+            {/* הצגת שם המשתמש כאישור ויזואלי שהמידע עבר (אופציונלי) */}
+            {firstName && (
+              <Text style={styles.greeting}>Hi {firstName}, let's check your metrics.</Text>
+            )}
+            
             <Text style={styles.subtitle}>
               These values help personalize your health and nutrition recommendations.
             </Text>
@@ -97,6 +130,7 @@ export default function BodyMeasuresScreen() {
                 keyboardType="numeric"
                 value={height}
                 onChangeText={setHeight}
+                returnKeyType="next"
               />
             </View>
 
@@ -109,6 +143,7 @@ export default function BodyMeasuresScreen() {
                 keyboardType="numeric"
                 value={weight}
                 onChangeText={setWeight}
+                returnKeyType="next"
               />
             </View>
 
@@ -121,6 +156,7 @@ export default function BodyMeasuresScreen() {
                 keyboardType="numeric"
                 value={waist}
                 onChangeText={setWaist}
+                returnKeyType="done"
               />
               {whtr && (
                 <View style={styles.metricBox}>
@@ -215,6 +251,13 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
+  },
+  greeting: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: ACCENT,
+    textAlign: 'center',
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,

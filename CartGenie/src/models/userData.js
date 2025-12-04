@@ -50,12 +50,16 @@ const BodyMeasurementsSchema = new mongoose.Schema({
   bmi: {
     type: Number,
     required: true
+  },
+  whtr: {
+    type: Number,
+    default: 0
   }
 }, { _id: false });
 
-// תת-סכמה לאלרגיות
-const AllergiesSchema = new mongoose.Schema({
-  allergen: {
+// תת-סכמה למחלות (החליף את Allergies)
+const IllnessSchema = new mongoose.Schema({
+  name: {
     type: String,
     required: true
   },
@@ -66,9 +70,10 @@ const AllergiesSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
+// תת-סכמה לנתונים רפואיים
 const MedicalDataSchema = new mongoose.Schema({
-  allergies: [AllergiesSchema],
-  otherAllergies: {
+  illnesses: [IllnessSchema],
+  otherIllnesses: {
     type: String,
     trim: true
   }
