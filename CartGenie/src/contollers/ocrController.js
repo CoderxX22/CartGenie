@@ -62,7 +62,7 @@ export const scanReceipt = async (req, res) => {
  * מחפשת רצפים של ספרות באורך 8 עד 14 תווים
  */
 const parseBarcodesOnly = (text) => {
-  // Regex שמוצא רצפים של ספרות (בין 8 ל-14 ספרות)
+  // Regex שמוצא רצפים של ספרות (בין 12 ל-14 ספרות)
   // \b מבטיח שאנחנו לוקחים מספר שלם ולא חלק ממספר ארוך יותר
   const barcodeRegex = /\b\d{12,14}\b/g;
   
