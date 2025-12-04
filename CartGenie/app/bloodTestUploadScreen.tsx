@@ -17,7 +17,7 @@ import { API_URL } from '../src/config/api';
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 
-export default function UploadResultsScreen() {
+export default function BloodTestUploadScreen() {
   const router = useRouter();
   const { file, progress, uploading, canSubmit, chooseSource } = useUploadFile();
 
@@ -33,28 +33,19 @@ export default function UploadResultsScreen() {
     height,
     waist,
     bmi,
-    allergies,
-    otherAllergies,
-    allergySeverity,
   } = params;
 
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    console.log('📋 Upload Results Screen - Received all data:');
-    console.log('Username:', username);
-    console.log('Name:', firstName, lastName);
-    console.log('All params:', params);
+    console.log('📋 Blood Test Upload Screen - Received data:', params);
   }, [params]);
 
-  // отправка данных в Mongo (используется только для Submit)
-  const saveDataToMongo = async (includeBloodTest = false) => {
-    if (isSaving) return;
-
-    try {
-      setIsSaving(true);
-
-      const userData: any = {
+  // 👉 "Prefer not to upload now" → illnessesScreen
+  const handleUploadLater = () => {
+    router.push({
+      pathname: '/illnessesScreen', // ✅ теперь идёт на экран болезней
+      params: {
         username,
         firstName,
         lastName,
@@ -65,84 +56,61 @@ export default function UploadResultsScreen() {
         height,
         waist,
         bmi,
-        allergies,
-        otherAllergies,
-        allergySeverity,
-      };
+      },
+    });
+  };
 
-      // если потом захочешь добавить файл:
-      // if (includeBloodTest && file) {
-      //   userData.bloodTest = {
-      //     fileName: file.name,
-      //     fileUrl: file.uri || '',
-      //     fileSize: file.size,
-      //   };
-      // }
+  // 👉 Загрузка и сохранение анализа
+  const handleSubmit = async () => {
+    if (!canSubmit || isSaving) return;
 
-      console.log('Sending data to MongoDB:', userData);
+    try {
+      setIsSaving(true);
 
-      const response = await fetch(`${API_URL}/api/userdata/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
+      // Здесь можно добавить реальную загрузку на сервер
+      await new Promise((r) => setTimeout(r, 1000));
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to save data');
-      }
-
-      console.log('✅ Data saved successfully:', data);
-      return true;
+      Alert.alert('Success!', 'Your blood test file was uploaded successfully.', [
+        {
+          text: 'Continue',
+          onPress: () =>
+            router.push({
+              pathname: '/illnessesScreen', // ✅ после успешной загрузки — тоже сюда
+              params: {
+                username,
+                firstName,
+                lastName,
+                birthDate,
+                ageYears,
+                sex,
+                weight,
+                height,
+                waist,
+                bmi,
+              },
+            }),
+        },
+      ]);
     } catch (error) {
-      console.error('❌ Error saving data:', error);
-      Alert.alert('Error', `Failed to save data: ${error}`, [{ text: 'OK' }]);
-      return false;
+      console.error('❌ Upload error:', error);
+      Alert.alert('Error', 'Failed to upload blood test. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Submit — сохраняем ВСЁ, включая анализ (если реализуешь includeBloodTest)
-  const handleSubmit = async () => {
-    if (!canSubmit || isSaving) return;
-
-    const success = await saveDataToMongo(true);
-
-    if (success) {
-      Alert.alert('Success!', 'Your data and blood test results have been saved successfully.', [
-        {
-          text: 'OK',
-          onPress: () => router.push('/(tabs)/homePage'),
-        },
-      ]);
-    }
-  };
-
-  // 👉 Upload Later — теперь просто переходит на home, без сохранения и без Alert
-  const handleUploadLater = () => {
-    router.push({
-      pathname: '/(tabs)/homePage',
-      params: {
-        username,
-        firstName,
-        lastName,
-      },
-    });
-  };
-
   return (
     <>
-      <Stack.Screen options={{ title: 'Test Upload' }} />
+      <Stack.Screen options={{ title: 'Upload Blood Test' }} />
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Upload Blood Test Results</Text>
           <Text style={styles.subtitle}>
-            Upload your recent blood test results to personalize your grocery recommendations.
-            We accept PDF and JPG formats.
+            Upload your recent blood test results to personalize your recommendations.
+            We accept PDF, JPG and PNG formats.
           </Text>
 
+          {/* User Info Banner */}
           {username && (
             <View style={styles.usernameBanner}>
               <Ionicons name="person-circle" size={20} color={ACCENT} />
@@ -152,15 +120,14 @@ export default function UploadResultsScreen() {
             </View>
           )}
 
-          {/* uploader */}
+          {/* File uploader */}
           <View style={styles.dropZone}>
-            <View style={{ alignItems: 'center', gap: 6, maxWidth: 480 }}>
+            <View style={{ alignItems: 'center', gap: 6 }}>
               <Text style={styles.dropTitle}>
-                {file ? 'File selected' : 'Drag and drop or browse'}
+                {file ? 'File selected' : 'Tap below to choose a file'}
               </Text>
-              <Text style={styles.dropSub}>Accepted formats: PDF, JPG, PNG</Text>
               {file && (
-                <Text style={styles.fileInfo} numberOfLines={1}>
+                <Text style={styles.fileInfo}>
                   {file.name} {file.size ? `• ${fmtSize(file.size)}` : ''}
                 </Text>
               )}
@@ -178,51 +145,46 @@ export default function UploadResultsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Progress */}
+          {/* Upload progress */}
           {file && (
             <View style={styles.progressWrap}>
-              <View style={styles.progressRow}>
-                <Text style={styles.progressLabel}>
-                  {uploading && progress < 100 ? 'Uploading...' : 'Ready'}
-                </Text>
-                <Text style={styles.progressPct}>{progress}%</Text>
-              </View>
+              <Text style={styles.progressLabel}>
+                {uploading && progress < 100 ? 'Uploading...' : 'Ready'}
+              </Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${progress}%` }]} />
               </View>
             </View>
           )}
 
-          {/* Submit */}
-          <View style={styles.submitRow}>
-            <TouchableOpacity
-              style={[styles.submitBtn, (!canSubmit || isSaving) && { opacity: 0.6 }]}
-              onPress={handleSubmit}
-              activeOpacity={0.92}
-              disabled={!canSubmit || isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <ActivityIndicator size="small" color="#fff" />
-                  <Text style={[styles.submitText, { marginLeft: 8 }]}>Saving...</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.submitText}>Submit</Text>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={20}
-                    color="#fff"
-                    style={{ marginLeft: 8 }}
-                  />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Submit button */}
+          <TouchableOpacity
+            style={[styles.submitBtn, (!canSubmit || isSaving) && { opacity: 0.6 }]}
+            onPress={handleSubmit}
+            activeOpacity={0.92}
+            disabled={!canSubmit || isSaving}
+          >
+            {isSaving ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={[styles.submitText, { marginLeft: 8 }]}>Saving...</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.submitText}>Submit</Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={20}
+                  color="#fff"
+                  style={{ marginLeft: 8 }}
+                />
+              </>
+            )}
+          </TouchableOpacity>
 
-          {/* Upload Later – теперь просто навигация */}
-          <TouchableOpacity onPress={handleUploadLater}>
-            <Text style={styles.skip}>I prefer Upload Later</Text>
+          {/* ✅ Skip button */}
+          <TouchableOpacity onPress={handleUploadLater} activeOpacity={0.8}>
+            <Text style={styles.skip}>Prefer not to upload now</Text>
           </TouchableOpacity>
 
           {isSaving && (
@@ -270,7 +232,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#141414',
     marginBottom: 6,
-    letterSpacing: -0.2,
   },
   subtitle: {
     fontSize: 13,
@@ -311,12 +272,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     textAlign: 'center',
   },
-  dropSub: {
-    color: '#141414',
-    fontSize: 13,
-    textAlign: 'center',
-    opacity: 0.9,
-  },
   fileInfo: {
     marginTop: 6,
     fontSize: 12,
@@ -326,35 +281,23 @@ const styles = StyleSheet.create({
     height: 40,
     paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: '#EDEDED',
+    backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 120,
-    maxWidth: 480,
+    minWidth: 140,
   },
   browseText: {
-    color: '#141414',
+    color: ACCENT,
     fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 0.15,
   },
   progressWrap: {
-    gap: 8,
-    paddingTop: 14,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginTop: 16,
   },
   progressLabel: {
     color: '#141414',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  progressPct: {
-    color: '#141414',
     fontSize: 14,
-    fontWeight: '600',
+    marginBottom: 8,
   },
   progressTrack: {
     height: 8,
@@ -364,12 +307,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#141414',
-    borderRadius: 6,
-  },
-  submitRow: {
-    alignItems: 'flex-end',
-    paddingTop: 16,
+    backgroundColor: ACCENT,
   },
   submitBtn: {
     width: '100%',
@@ -379,22 +317,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    marginTop: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0369A1',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.22,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-    }),
+    marginTop: 24,
   },
   submitText: {
     color: '#FAFAFA',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 0.15,
   },
   skip: {
     fontWeight: '700',
