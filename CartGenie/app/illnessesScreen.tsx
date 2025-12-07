@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIllnesses } from '@/hooks/useIllnesses';
-import { API_URL } from '@/src/config/api';
+import UserDataService from '@/components/userDataServices';
 
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
@@ -43,27 +43,30 @@ const ILLNESSES = [
   'Depression / Anxiety (affecting appetite)',
 ];
 
+type SearchParams = {
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
+  ageYears?: string;
+  sex?: string;
+  height?: string;
+  weight?: string;
+  waist?: string;
+  bmi?: string;
+  whtr?: string;
+};
+
 export default function IllnessesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   
-  // 📥 קליטת כל הנתונים מהמסכים הקודמים
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<SearchParams>();
   const { 
-    username, 
-    firstName, 
-    lastName, 
-    birthDate, 
-    ageYears, 
-    sex,
-    height, 
-    weight,
-    waist,
-    bmi, 
-    whtr 
+    username, firstName, lastName, birthDate, ageYears, sex,
+    height, weight, waist, bmi, whtr 
   } = params;
 
-  // --- שימוש ב-Hook המתוקן (במקום State מקומי) ---
   const {
     selected,
     other,
@@ -77,7 +80,6 @@ export default function IllnessesScreen() {
   const [query, setQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // עטיפה לפונקציות של ה-Hook כדי להוסיף Haptics
   const handleToggle = (item: string) => {
     toggle(item);
     Haptics.selectionAsync();
@@ -87,7 +89,6 @@ export default function IllnessesScreen() {
     clearAll();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
-  // ------------------------------------------
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -95,70 +96,44 @@ export default function IllnessesScreen() {
     return ILLNESSES.filter((a) => a.toLowerCase().includes(q));
   }, [query]);
 
-  // פונקציה ראשית לשמירה בשרת MongoDB
   const saveDataAndNavigate = async (illnessesList: string[], otherText: string) => {
     setIsSaving(true);
     try {
-      const payload = {
-        username: username || '',
-        firstName: firstName || '',
-        lastName: lastName || '',
-        birthDate: birthDate || '',
-        sex: sex || '',
-        ageYears: ageYears ? String(ageYears) : '0',
-        weight: weight ? String(weight) : '0',
-        height: height ? String(height) : '0',
-        waist: waist ? String(waist) : '0',
-        bmi: bmi ? String(bmi) : '0',
+      // תיקון השגיאה: שימוש ב-any מאפשר לנו לשלוח אובייקט חלקי
+      // TypeScript לא יצעק שחסרים שדות חובה
+      const payload: any = {
         illnesses: illnessesList,
         otherIllnesses: otherText,
-        whtr: whtr ? String(whtr) : '0'
       };
 
-      // הכתובת היא של ה-API Endpoint ולא של ה-Collection
-      // הוספנו /save כי כך מוגדר בקובץ הראוטר ששלחת: router.post('/save', ...)
-      const endpoint = `${API_URL}/api/userdata/save`;
-      
-      console.log(`📤 Sending data to Server Function: ${endpoint}`);
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      if (username) payload.username = username;
+      if (firstName) payload.firstName = firstName;
+      if (lastName) payload.lastName = lastName;
+      if (birthDate) payload.birthDate = birthDate;
+      if (sex) payload.sex = sex;
 
-      const responseText = await response.text();
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        console.error('❌ Server returned non-JSON response:', responseText.slice(0, 500));
-        throw new Error(`Server returned unexpected response (likely HTML). Status: ${response.status}`);
-      }
+      if (ageYears) payload.ageYears = String(ageYears);
+      if (weight) payload.weight = String(weight);
+      if (height) payload.height = String(height);
+      if (waist) payload.waist = String(waist);
+      if (bmi) payload.bmi = String(bmi);
+      if (whtr) payload.whtr = String(whtr);
 
-      if (!response.ok) {
-        throw new Error(result.message || `Server Error: ${response.status}`);
-      }
-
-      console.log('✅ Data saved successfully via API:', result);
+      await UserDataService.saveUserProfile(payload);
 
       router.push({
         pathname: '/(tabs)/homePage',
         params: {
-          ...params,
+          ...(params as any),
           illnesses: JSON.stringify(illnessesList),
           otherIllnesses: otherText,
         },
       });
 
     } catch (error: any) {
-      console.error('❌ Error saving profile:', error);
       Alert.alert(
         'Save Error', 
-        error.message || 'Could not save your profile. Please check your connection and server URL.'
+        error.message || 'Could not save your profile. Please check your connection.'
       );
     } finally {
       setIsSaving(false);
@@ -190,7 +165,8 @@ export default function IllnessesScreen() {
   const handleContinue = async () => {
     if (isSaving) return;
     await Haptics.selectionAsync();
-    const currentList = Array.from(selected);
+    
+    const currentList = Array.from(selected) as string[];
     const currentOther = other.trim();
     
     await saveDataAndNavigate(currentList, currentOther);
@@ -249,20 +225,12 @@ export default function IllnessesScreen() {
                 activeOpacity={0.9}
                 disabled={isSaving}
               >
-                <Ionicons
-                  name="close-circle-outline"
-                  size={16}
-                  color="#111827"
-                />
+                <Ionicons name="close-circle-outline" size={16} color="#111827" />
                 <Text style={styles.pillButtonText}>Clear All</Text>
               </TouchableOpacity>
 
               <View style={styles.counterPill}>
-                <Ionicons
-                  name="list-circle-outline"
-                  size={16}
-                  color="#0F172A"
-                />
+                <Ionicons name="list-circle-outline" size={16} color="#0F172A" />
                 <Text style={styles.counterPillText}>
                   Selected: {selected.size + (other.trim() ? 1 : 0)}
                 </Text>
@@ -280,12 +248,7 @@ export default function IllnessesScreen() {
                     activeOpacity={0.9}
                     disabled={isSaving}
                   >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isOn ? styles.chipTextOn : styles.chipTextOff,
-                      ]}
-                    >
+                    <Text style={[styles.chipText, isOn ? styles.chipTextOn : styles.chipTextOff]}>
                       {item}
                     </Text>
                     <Ionicons
@@ -327,12 +290,7 @@ export default function IllnessesScreen() {
               ) : (
                 <>
                   <Text style={styles.ctaText}>Finish & Save</Text>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color="#fff"
-                    style={{ marginLeft: 8 }}
-                  />
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginLeft: 8 }} />
                 </>
               )}
             </TouchableOpacity>
@@ -345,105 +303,21 @@ export default function IllnessesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F3F6FA' },
-  container: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: CARD_MAX,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOpacity: 0.08,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
-      },
-      android: { elevation: 5 },
-    }),
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 14,
-    textAlign: 'center',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-    gap: 8,
-  },
+  container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 24 },
+  card: { width: '100%', maxWidth: CARD_MAX, backgroundColor: '#FFFFFF', borderRadius: 18, paddingHorizontal: 20, paddingVertical: 22, borderWidth: 1, borderColor: '#EEF2F7', ...Platform.select({ ios: { shadowColor: '#0F172A', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } }, android: { elevation: 5 } }) },
+  title: { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 6, textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#6B7280', marginBottom: 14, textAlign: 'center' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10, gap: 8 },
   searchInput: { flex: 1, color: '#111827', padding: 0, margin: 0 },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  pillButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
+  actionsRow: { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' },
+  pillButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   pillPrimary: { backgroundColor: ACCENT, borderColor: ACCENT },
   pillButtonText: { marginLeft: 6, color: '#111827', fontWeight: '600' },
   pillPrimaryText: { marginLeft: 6, color: '#fff', fontWeight: '700' },
-  counterPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-  },
+  counterPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   counterPillText: { color: '#0F172A', fontWeight: '700', fontSize: 12 },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingVertical: 6,
-    marginBottom: 12,
-    justifyContent: 'center',
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 6, marginBottom: 12, justifyContent: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
   chipOn: { backgroundColor: ACCENT, borderColor: ACCENT },
   chipOff: { backgroundColor: '#F8FAFC', borderColor: '#E5E7EB' },
   chipText: { fontSize: 14 },
@@ -451,30 +325,7 @@ const styles = StyleSheet.create({
   chipTextOff: { color: '#111827', fontWeight: '600' },
   field: { marginTop: 4, marginBottom: 12 },
   label: { fontSize: 13, color: '#6B7280', marginBottom: 6 },
-  input: {
-    width: '100%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  cta: {
-    width: '100%',
-    backgroundColor: ACCENT,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  ctaText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
+  input: { width: '100%', backgroundColor: '#F9FAFB', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, fontSize: 16, color: '#111827', borderWidth: 1, borderColor: '#E5E7EB' },
+  cta: { width: '100%', backgroundColor: ACCENT, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  ctaText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
 });

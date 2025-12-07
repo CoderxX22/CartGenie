@@ -28,13 +28,13 @@ export default function PersonalDetails() {
   const router = useRouter();
   const col = useAppColors();
 
-  // 📥 קבלת username מהמסך הקודם (LoginScreen)
+  // 📥 קבלת כל הפרמטרים מהמסך הקודם
   const params = useLocalSearchParams();
-  const { username } = params;
+  const { username } = params; // שליפה של username רק לצורך תצוגה
 
   useEffect(() => {
-    console.log('👤 Username received:', username);
-  }, [username]);
+    console.log('📥 Parameters received:', params);
+  }, [params]);
 
   // form state
   const [firstName, setFirstName] = useState('');
@@ -92,13 +92,14 @@ export default function PersonalDetails() {
       // TODO: save data if needed
       await new Promise(r => setTimeout(r, 700)); // demo delay
       
-      // 📤 העברת כל הנתונים למסך הבא כולל username
+      // 📤 העברת כל הנתונים למסך הבא
       router.push({
         pathname: '/bodyMeasures',
         params: {
-          // username מהמסך הקודם
-          username,
-          // נתונים חדשים
+          // 1. מעביר את כל מה שהתקבל מהמסך הקודם (כולל username וכל שדה נסתר אחר)
+          ...(params as any),
+
+          // 2. מוסיף את הנתונים החדשים שנאספו במסך הזה
           firstName,
           lastName,
           birthDate: birthDate?.toISOString() || '',

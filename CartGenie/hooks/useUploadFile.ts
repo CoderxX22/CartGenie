@@ -1,133 +1,150 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActionSheetIOS, Alert, Platform } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { useState, useEffect } from 'react';
+import { Alert, Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 
-export type SelectedFile = {
-  uri: string; name: string; size?: number 
-};
+interface FileData {
+  uri: string;
+  name: string;
+  size?: number;
+  mimeType?: string;
+}
 
 export function useUploadFile() {
-  const [file, setFile] = useState<SelectedFile | null>(null);
+  const [file, setFile] = useState<FileData | null>(null);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  // איפוס הפרוגרס כשמחליפים קובץ
+  useEffect(() => {
+    if (file) {
+      setProgress(100); // מציין שהקובץ נבחר בהצלחה
+      setUploading(false);
     }
-  }, []);
+  }, [file]);
 
-  const startSimulatedUpload = useCallback((nextFile: SelectedFile) => {
-    setFile(nextFile);
-    setProgress(0);
-    setUploading(true);
+  const chooseSource = () => {
+    Alert.alert(
+      'Select Source',
+      'Choose how you want to add your blood test results',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Choose from Library',
+          onPress: pickFromLibrary,
+        },
+        {
+          text: 'Pick Document',
+          onPress: pickDocument,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
 
-    clearTimer();
-    timerRef.current = setInterval(() => {
-      setProgress((p) => {
-        const n = p + 6;
-        if (n >= 100) {
-          clearTimer();
-          return 100;
-        }
-        return n;
-      });
-    }, 120);
-  }, [clearTimer]);
-
-  const pickFromCamera = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera permission required', 'Please enable camera permission to scan.');
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.9,
-    });
-    if (res.canceled) return;
-    const a = res.assets?.[0];
-    if (!a) return;
-    startSimulatedUpload({
-      name: a.fileName ?? 'Scanned photo.jpg',
-      size: a.fileSize,
-    });
-  }, [startSimulatedUpload]);
-
-  const pickFromGallery = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Photos permission required', 'Please enable photo library permission.');
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: false,
-      quality: 0.9,
-    });
-    if (res.canceled) return;
-    const a = res.assets?.[0];
-    if (!a) return;
-    startSimulatedUpload({
-      name: a.fileName ?? 'Selected photo.jpg',
-      size: a.fileSize,
-    });
-  }, [startSimulatedUpload]);
-
-  const pickPdf = useCallback(async () => {
+  const takePhoto = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf'],
-        multiple: false,
+      // בקשת הרשאה למצלמה
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera permission is required to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setFile({
+          uri: asset.uri,
+          name: `photo_${Date.now()}.jpg`,
+          size: asset.fileSize,
+          mimeType: 'image/jpeg',
+        });
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const pickFromLibrary = async () => {
+    try {
+      // בקשת הרשאה לגלריה
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Photo library permission is required');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setFile({
+          uri: asset.uri,
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+          size: asset.fileSize,
+          mimeType: asset.type || 'image/jpeg',
+        });
+      }
+    } catch (error) {
+      console.error('Error picking from library:', error);
+      Alert.alert('Error', 'Failed to pick image from library');
+    }
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
         copyToCacheDirectory: true,
       });
-      if (res.canceled) return;
-      const asset = res.assets?.[0];
-      if (!asset) return;
-      startSimulatedUpload({ name: asset.name ?? 'Selected file.pdf', size: asset.size });
-    } catch (e) {
-      console.warn('picker error', e);
+
+      console.log('DocumentPicker result:', result);
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        setFile({
+          uri: asset.uri,
+          name: asset.name,
+          size: asset.size || undefined,
+          mimeType: asset.mimeType || undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
     }
-  }, [startSimulatedUpload]);
+  };
 
-  const chooseSource = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Scan with Camera', 'Choose from Photos', 'Pick a PDF', 'Cancel'],
-          cancelButtonIndex: 3,
-        },
-        (i) => {
-          if (i === 0) pickFromCamera();
-          else if (i === 1) pickFromGallery();
-          else if (i === 2) pickPdf();
-        }
-      );
-    } else {
-      Alert.alert('Upload', 'Choose source', [
-        { text: 'Scan with Camera', onPress: pickFromCamera },
-        { text: 'Choose from Photos', onPress: pickFromGallery },
-        { text: 'Pick a PDF', onPress: pickPdf },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
-  }, [pickFromCamera, pickFromGallery, pickPdf]);
-
-  useEffect(() => {
-    if (progress >= 100 && uploading) setUploading(false);
-    return clearTimer;
-  }, [progress, uploading, clearTimer]);
-
-  const canSubmit = !!file && progress === 100;
+  const canSubmit = file !== null && !uploading;
 
   return {
     file,
     progress,
     uploading,
     canSubmit,
-    chooseSource,   
+    chooseSource,
+    setFile,
+    setProgress,
+    setUploading,
   };
 }

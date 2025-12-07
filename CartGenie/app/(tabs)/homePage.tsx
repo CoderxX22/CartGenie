@@ -49,8 +49,8 @@ export default function HomePage() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  const firstName = typeof params.firstName === 'string' ? params.firstName : 'Guest';
-  const username = typeof params.username ==='string'? params.username : "";
+  const firstName = params.firstName;
+  const username =params.username;
   const col = useAppColors();
   const styles = useMemo(() => makeStyles(col), [col]);
 
@@ -127,7 +127,7 @@ export default function HomePage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Home', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Home', headerShown: false ,gestureEnabled: false , headerLeft: () => null}} />
 
       {/* --- תפריט צד (Modal) --- */}
       <Modal
@@ -217,16 +217,6 @@ export default function HomePage() {
             <View style={styles.statusRow}>
               <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
               <Text style={styles.statusText}>Body measures completed</Text>
-            </View>
-            <View style={styles.statusRow}>
-              <Ionicons
-                name={illnessesLoading ? 'ellipse-outline' : hasSelection ? 'checkmark-circle' : 'alert-circle'}
-                size={18}
-                color={illnessesLoading ? col.subtitle : hasSelection ? '#22c55e' : '#f97316'}
-              />
-              <Text style={styles.statusText}>
-                {illnessesLoading ? 'Loading...' : hasSelection ? 'Allergies saved' : 'Allergies missing'}
-              </Text>
             </View>
             <View style={styles.statusRow}>
               <Ionicons name={bloodStatus.icon as any} size={18} color={bloodStatus.color} />
