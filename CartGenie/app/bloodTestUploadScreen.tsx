@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,59 +14,38 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../src/config/api'; 
-// 👇 תוספת 1: ייבוא AsyncStorage לשמירה מקומית
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ייבוא השירות לשמירת הנתונים
+// 👇 ייבוא השירות לשמירת הנתונים
 import UserDataService, { UserProfilePayload } from '../components/userDataServices'; 
 
 const ACCENT = '#0096c7';
-const CARD_MAX = 520;
 
 interface ServerResponse {
   rawText?: string;
   diagnosis: string[];
 }
 
-type PickedFile = {
-  uri: string;
-  name: string;
-  mimeType: string;
-};
-
-type SearchParams = {
-  username?: string;
-  firstName?: string;
-  lastName?: string;
-  birthDate?: string;
-  ageYears?: string;
-  sex?: string;
-  height?: string;
-  weight?: string;
-  waist?: string;
-  bmi?: string;
-  whtr?: string;
-};
-
 export default function BloodTestUploadScreen() {
   const router = useRouter();
   
+  // קבלת הפרמטרים ממסכים קודמים
   const params = useLocalSearchParams();
   const { username, firstName, lastName, birthDate, ageYears, sex,
     height, weight, waist, bmi, whtr  } = params;
 
-  const [file, setFile] = useState<PickedFile | null>(null);
+  const [file, setFile] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<ServerResponse | null>(null);
 
+  // פונקציית עזר לוודא שהערך הוא מחרוזת
   const getStringParam = (param: string | string[] | undefined): string => {
     if (Array.isArray(param)) return param[0];
     return param || '';
   };
 
   const chooseSource = () => {
-    Alert.alert('Select Source', 'Choose where to upload your blood test from:', [
+    Alert.alert('Select Source', 'Choose source', [
       { text: 'Take Photo', onPress: takePhoto },
       { text: 'Library', onPress: pickFromLibrary },
       { text: 'Document', onPress: pickDocument },
@@ -76,51 +55,31 @@ export default function BloodTestUploadScreen() {
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Camera access is needed to take a photo.');
-      return;
-    }
-
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setFile({
-        uri: result.assets[0].uri,
-        name: 'photo.jpg',
-        mimeType: 'image/jpeg',
-      });
+      setFile({ uri: result.assets[0].uri, name: `photo.jpg`, mimeType: 'image/jpeg' });
       setAnalysisResults(null);
     }
   };
-
+  
   const pickFromLibrary = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setFile({
-        uri: result.assets[0].uri,
-        name: result.assets[0].fileName || 'image.jpg',
-        mimeType: 'image/jpeg',
-      });
+      setFile({ uri: result.assets[0].uri, name: result.assets[0].fileName || 'image.jpg', mimeType: 'image/jpeg' });
       setAnalysisResults(null);
     }
   };
 
   const pickDocument = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
-      });
-
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'] });
       if (!result.canceled && result.assets[0]) {
-        setFile({
-          uri: result.assets[0].uri,
-          name: result.assets[0].name,
-          mimeType: result.assets[0].mimeType || 'application/pdf',
-        });
+        setFile({ uri: result.assets[0].uri, name: result.assets[0].name, mimeType: result.assets[0].mimeType || 'application/pdf' });
         setAnalysisResults(null);
       }
     } catch (err) {
-      console.error('Document Picker Error:', err);
-      Alert.alert('Error', 'Could not open document picker.');
+      console.error(err);
     }
   };
 
@@ -156,60 +115,46 @@ export default function BloodTestUploadScreen() {
       });
 
       const jsonResponse = await response.json();
-      console.log('🧪 Blood test response raw:', jsonResponse);
 
-      if (!response.ok || !jsonResponse.success) {
+      if (!jsonResponse.success) {
         throw new Error(jsonResponse.message || 'Server returned an error');
       }
 
-      const data: ServerResponse = jsonResponse.data ?? { diagnosis: [] };
-
-      // Console preview for DB payload (blood test–specific)
-      const dbPayloadPreview = {
-        ...(params as any),
-        sourceFileName: file.name,
-        diagnosis: data.diagnosis,
-        rawText: data.rawText ?? '',
-      };
-      console.log(
-        '💾 BloodTest – payload for database preview (analysis only):',
-        dbPayloadPreview,
-      );
-
-      setAnalysisResults(data);
+      setAnalysisResults(jsonResponse.data);
       Alert.alert('Success', 'Analysis complete!');
+
     } catch (error: any) {
       console.error('Upload Error:', error);
-      Alert.alert(
-        'Error',
-        error?.message || 'Failed to analyze document. Please try again.',
-      );
+      Alert.alert('Error', 'Failed to analyze document. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   const handleManualSelect = () => {
+    // גם כאן אנחנו מעבירים את הפרמטרים הלאה למקרה שיבחר ידנית
     router.push({
       pathname: '/illnessesScreen',
       params: { ...(params as any) },
     });
   };
 
-  // 👇 הפונקציה המעודכנת - כאן השינוי הגדול
+  // 👇 פונקציה מעודכנת: שומרת ל-DB וגם מעבירה את כל המידע ל-Home Page
   const handleContinue = async () => {
     if (isSaving) return;
 
-    // 1. עיבוד המחלות
+    // 1. עיבוד המחלות שנמצאו
     const detectedConditions: string[] = [];
+    
     if (analysisResults) {
       if (analysisResults.diagnosis.includes('High Cholesterol')) detectedConditions.push('High cholesterol');
       if (analysisResults.diagnosis.includes('Type 2 Diabetes')) detectedConditions.push('Diabetes Type 2');
       if (analysisResults.diagnosis.includes('High Blood Pressure (Sodium)')) detectedConditions.push('High blood pressure (Hypertension)');
     }
+    
     if (detectedConditions.length === 0) detectedConditions.push('does not ill');
 
-    // 2. יצירת ה-Payload
+    // 2. יצירת אובייקט הנתונים המלא והנקי (Payload)
     const payload: UserProfilePayload = {
         username: getStringParam(username),
         firstName: getStringParam(firstName),
@@ -222,32 +167,33 @@ export default function BloodTestUploadScreen() {
         waist: getStringParam(waist),
         bmi: getStringParam(bmi),
         whtr: getStringParam(whtr),
-        illnesses: detectedConditions,
+        illnesses: detectedConditions, // זהו המערך המעודכן
         otherIllnesses: '', 
     };
 
     try {
         setIsSaving(true);
         
-        // שלב א: שמירה בשרת (DB) - נשאר כמו שהיה
-        console.log('💾 Saving to Server DB...');
+        // 3. שליחה לשרת (DB)
         await UserDataService.saveUserProfile(payload);
 
-        // 👇 תוספת 2: שמירה מקומית (Local Storage)
-        // זה מבטיח שהמשתמש לא "יאבד" במעבר למסכים הבאים
-        if (payload.username) {
-            await AsyncStorage.setItem('loggedInUser', payload.username);
-            console.log('✅ Username saved locally:', payload.username);
-        }
-
-        // שלב ג: מעבר למסך הבית
+        // 4. שליחת כל הנתונים למסך הבית
+        // אנחנו משתמשים ב-payload שיצרנו כדי להבטיח שהנתונים בבית זהים לנתונים ב-DB
         router.push({
             pathname: '/(tabs)/homePage',
             params: {
-                // אנחנו מעבירים גם ב-Params ליתר ביטחון
                 username: payload.username,
                 firstName: payload.firstName,
-                // ...שאר הפרמטרים
+                lastName: payload.lastName,
+                birthDate: payload.birthDate,
+                sex: payload.sex,
+                ageYears: payload.ageYears,
+                weight: payload.weight,
+                height: payload.height,
+                waist: payload.waist,
+                bmi: payload.bmi,
+                whtr: payload.whtr,
+                // מערכים בדרך כלל מועברים כמחרוזת ב-URL params
                 illnesses: JSON.stringify(payload.illnesses), 
             },
         });
@@ -260,42 +206,27 @@ export default function BloodTestUploadScreen() {
     }
   };
 
-  const hasResults = !!analysisResults;
-
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Upload Blood Test',
-          headerShown: true,
-        }}
-      />
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
+      <Stack.Screen options={{ title: 'Upload Blood Test' }} />
+      <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Blood Test Upload</Text>
           <Text style={styles.subtitle}>
-            Upload your recent blood test for a more accurate product matching.
+            Upload Your file for a better matching of products.
           </Text>
 
           {firstName && (
             <View style={styles.usernameBanner}>
-              <Ionicons
-                name="person-circle"
-                size={20}
-                color={col.accent ?? ACCENT}
-              />
-              <Text style={styles.usernameText}>Hi, {firstName}</Text>
+              <Ionicons name="person-circle" size={20} color={ACCENT} />
+              <Text style={styles.usernameText}>{firstName}</Text>
             </View>
           )}
 
-          {/* File selection area */}
           <View style={styles.dropZone}>
             <View style={{ alignItems: 'center', gap: 6 }}>
               <Text style={styles.dropTitle}>
-                {file ? 'File ready to upload' : 'Select your blood test file'}
+                {file ? 'File Ready to Upload' : 'Select File'}
               </Text>
               {file && <Text style={styles.fileName}>{file.name}</Text>}
             </View>
@@ -312,7 +243,7 @@ export default function BloodTestUploadScreen() {
             disabled={!file || isAnalyzing || isSaving}
           >
             {isAnalyzing ? (
-              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <View style={{flexDirection: 'row', gap: 10}}>
                 <ActivityIndicator color="#fff" />
                 <Text style={styles.submitText}>Analyzing...</Text>
               </View>
@@ -328,23 +259,22 @@ export default function BloodTestUploadScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Analysis results */}
           {analysisResults && (
             <View style={styles.resultsContainer}>
               <View style={styles.divider} />
-              <Text style={styles.resultsTitle}>📊 Analysis Results</Text>
-              <Text style={styles.secureSubtitle}>Your data securely safed!</Text>
-
-              {/* Only show list if there are any visible diagnoses */}
-              {visibleDiagnosis.length > 0 && (
-                <View style={styles.resultsList}>
-                  {visibleDiagnosis.map((diag, index) => (
-                    <Text key={index} style={styles.diagnosisLine}>
-                      • {diag}
-                    </Text>
-                  ))}
-                </View>
-              )}
+              <Text style={styles.resultsTitle}>📊 Results:</Text>
+              
+              <View style={styles.tagsContainer}>
+                {analysisResults.diagnosis.map((diag, index) => (
+                  <View key={index} style={styles.diagnosisTag}>
+                    <Ionicons name="medkit-outline" size={16} color="#B91C1C" />
+                    <Text style={styles.diagnosisText}>{diag}</Text>
+                  </View>
+                ))}
+                 {analysisResults.diagnosis.length === 0 && (
+                    <Text style={{color: 'green'}}>No abnormal conditions detected.</Text>
+                )}
+              </View>
             </View>
           )}
 
@@ -364,6 +294,7 @@ export default function BloodTestUploadScreen() {
                 )}
             </TouchableOpacity>
           )}
+
         </View>
       </ScrollView>
     </>
@@ -382,13 +313,23 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 12, color: '#555' },
   browseBtn: { flexDirection: 'row', gap: 5, backgroundColor: '#e0f2fe', padding: 10, borderRadius: 8 },
   browseText: { color: ACCENT, fontWeight: '700' },
+  
   submitBtn: { backgroundColor: ACCENT, padding: 15, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
   submitText: { color: '#fff', fontWeight: '700' },
+
   manualBtn: { 
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
-    gap: 5, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#f0f9ff'
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 5, 
+    padding: 12, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: ACCENT,
+    backgroundColor: '#f0f9ff'
   },
   manualBtnText: { color: ACCENT, fontWeight: '600' },
+
   resultsContainer: { marginTop: 20, marginBottom: 20 },
   divider: { height: 1, backgroundColor: '#eee', marginBottom: 15 },
   resultsTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
