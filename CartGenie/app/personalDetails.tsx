@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   View,
@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
+  Keyboard, // used to hide the keyboard when opening pickers
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -24,35 +25,42 @@ type Errors = {
   sex?: string;
 };
 
+const CARD_MAX = 520;
+const ACCENT = '#0096c7';
+
 export default function PersonalDetails() {
   const router = useRouter();
   const col = useAppColors();
 
-  // 📥 קבלת כל הפרמטרים מהמסך הקודם
+  // All params forwarded from the previous screen.
+  // 'username' is currently used only for display in the header banner.
   const params = useLocalSearchParams();
-  const { username } = params; // שליפה של username רק לצורך תצוגה
+  const { username } = params;
 
-  useEffect(() => {
-    console.log('📥 Parameters received:', params);
-  }, [params]);
-
-  // form state
+  // Form state
   const [firstName, setFirstName] = useState('');
-  const [lastName,  setLastName]  = useState('');
+  const [lastName, setLastName] = useState('');
   const [birthDate, setBirthDate] = useState<Date | null>(null);
-  const [ageYears,  setAgeYears]  = useState<string>('');
-  const [sex,       setSex]       = useState<Sex>('');
+  const [ageYears, setAgeYears] = useState<string>('');
+  const [sex, setSex] = useState<Sex>('');
 
-  // ui state
+  // UI state
   const [showSexPicker, setShowSexPicker] = useState(false);
   const [showAgePicker, setShowAgePicker] = useState(false);
-  const [loading,       setLoading]       = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // errors
+  // Temp state for sex selection inside the modal.
+  // This prevents closing the modal on simple scroll.
+  const [tempSex, setTempSex] = useState<Sex>('');
+
+  // Validation errors
   const [errors, setErrors] = useState<Errors>({});
 
+  // Handle date selection and derive age in years.
+  // On iOS the picker stays open until user closes the modal manually.
   const onAgeChange = (_event: any, selected?: Date) => {
     if (!selected) return;
+
     setBirthDate(selected);
 
     const today = new Date();
@@ -61,10 +69,17 @@ export default function PersonalDetails() {
     if (m < 0 || (m === 0 && today.getDate() < selected.getDate())) years--;
     setAgeYears(String(years));
 
-    if (errors.birthDate) setErrors(prev => ({ ...prev, birthDate: undefined }));
-    if (Platform.OS !== 'ios') setShowAgePicker(false);
+    if (errors.birthDate) {
+      setErrors(prev => ({ ...prev, birthDate: undefined }));
+    }
+
+    // On Android, close the date picker immediately after selection.
+    if (Platform.OS !== 'ios') {
+      setShowAgePicker(false);
+    }
   };
 
+  // Format a Date value as DD/MM/YYYY for display.
   const formatDate = (d?: Date | null) => {
     if (!d) return '';
     const dd = String(d.getDate()).padStart(2, '0');
@@ -73,39 +88,47 @@ export default function PersonalDetails() {
     return `${dd}/${mm}/${yyyy}`;
   };
 
+  // Basic client-side validation before continuing to the next step.
   const validate = () => {
     const e: Errors = {};
     if (!firstName.trim()) e.firstName = 'First name is required';
-    if (!lastName.trim())  e.lastName  = 'Last name is required';
-    if (!birthDate)        e.birthDate = 'Birth date is required';
-    if (!sex)              e.sex       = 'Sex is required';
+    if (!lastName.trim()) e.lastName = 'Last name is required';
+    if (!birthDate) e.birthDate = 'Birth date is required';
+    if (!sex) e.sex = 'Sex is required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
+  // Continue to the next screen and pass all collected data forward.
   const onContinue = async () => {
     if (loading) return;
     if (!validate()) return;
 
     try {
       setLoading(true);
-      // TODO: save data if needed
-      await new Promise(r => setTimeout(r, 700)); // demo delay
-      
-      // 📤 העברת כל הנתונים למסך הבא
+
+      // Build an object representing what would be sent to the backend.
+      const payloadForBackendPreview = {
+        ...(params as any),
+        firstName,
+        lastName,
+        birthDate: birthDate?.toISOString() || '',
+        ageYears,
+        sex,
+      };
+
+      // Console preview for backend integration / debugging.
+      console.log(
+        'PersonalDetails – payload for backend preview:',
+        payloadForBackendPreview,
+      );
+
+      // Placeholder delay while backend integration is not yet connected.
+      await new Promise(r => setTimeout(r, 700));
+
       router.push({
         pathname: '/bodyMeasures',
-        params: {
-          // 1. מעביר את כל מה שהתקבל מהמסך הקודם (כולל username וכל שדה נסתר אחר)
-          ...(params as any),
-
-          // 2. מוסיף את הנתונים החדשים שנאספו במסך הזה
-          firstName,
-          lastName,
-          birthDate: birthDate?.toISOString() || '',
-          ageYears,
-          sex,
-        },
+        params: payloadForBackendPreview,
       });
     } finally {
       setLoading(false);
@@ -114,16 +137,18 @@ export default function PersonalDetails() {
 
   const styles = useMemo(() => makeStyles(col), [col]);
 
+  // Disable the Continue button when required fields are missing or we are loading.
   const isDisabled = loading || !firstName || !lastName || !birthDate || !sex;
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false, title: 'Info' }} />
+
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Personal Information</Text>
 
-          {/* הצגת username אם קיים */}
+          {/* Show a small banner with the username if it was passed from login. */}
           {username && (
             <View style={styles.usernameBanner}>
               <Ionicons name="person-circle" size={20} color={col.accent ?? ACCENT} />
@@ -139,8 +164,17 @@ export default function PersonalDetails() {
               style={[styles.input, errors.firstName && styles.inputError]}
               placeholderTextColor="#9AA0A6"
               value={firstName}
-              onChangeText={(t) => { setFirstName(t); if (errors.firstName) setErrors(p => ({...p, firstName: undefined})); }}
-              onFocus={() => { setShowAgePicker(false); setShowSexPicker(false); }}
+              onChangeText={(t) => {
+                setFirstName(t);
+                if (errors.firstName) {
+                  setErrors(p => ({ ...p, firstName: undefined }));
+                }
+              }}
+              // When focusing a text field, make sure pickers are hidden.
+              onFocus={() => {
+                setShowAgePicker(false);
+                setShowSexPicker(false);
+              }}
               autoCapitalize="words"
               returnKeyType="next"
             />
@@ -155,8 +189,16 @@ export default function PersonalDetails() {
               style={[styles.input, errors.lastName && styles.inputError]}
               placeholderTextColor="#9AA0A6"
               value={lastName}
-              onChangeText={(t) => { setLastName(t); if (errors.lastName) setErrors(p => ({...p, lastName: undefined})); }}
-              onFocus={() => { setShowAgePicker(false); setShowSexPicker(false); }}
+              onChangeText={(t) => {
+                setLastName(t);
+                if (errors.lastName) {
+                  setErrors(p => ({ ...p, lastName: undefined }));
+                }
+              }}
+              onFocus={() => {
+                setShowAgePicker(false);
+                setShowSexPicker(false);
+              }}
               autoCapitalize="words"
               returnKeyType="next"
             />
@@ -169,7 +211,12 @@ export default function PersonalDetails() {
             <TouchableOpacity
               style={[styles.input, styles.inputButton, errors.birthDate && styles.inputError]}
               activeOpacity={0.85}
-              onPress={() => { setShowSexPicker(false); setShowAgePicker(true); }}
+              onPress={() => {
+                // Whenever we open the date picker, exit text-edit mode and hide the keyboard.
+                Keyboard.dismiss();
+                setShowSexPicker(false);
+                setShowAgePicker(true);
+              }}
             >
               <Text style={[styles.inputText, { color: birthDate ? '#111827' : '#9AA0A6' }]}>
                 {birthDate ? formatDate(birthDate) : 'Select your birth date'}
@@ -186,7 +233,13 @@ export default function PersonalDetails() {
             <TouchableOpacity
               style={[styles.input, styles.inputButton, errors.sex && styles.inputError]}
               activeOpacity={0.85}
-              onPress={() => { setShowAgePicker(false); setShowSexPicker(true); }}
+              onPress={() => {
+                // When opening the sex picker, hide the keyboard and initialize tempSex.
+                Keyboard.dismiss();
+                setShowAgePicker(false);
+                setTempSex(sex);
+                setShowSexPicker(true);
+              }}
             >
               <Text style={[styles.inputText, { color: sex ? '#111827' : '#9AA0A6' }]}>
                 {sex ? sex.charAt(0).toUpperCase() + sex.slice(1) : 'Select sex'}
@@ -207,7 +260,9 @@ export default function PersonalDetails() {
             {loading ? (
               <>
                 <ActivityIndicator size="small" color="#fff" />
-                <Text style={[styles.ContinueButtonText, { marginLeft: 8 }]}>Saving…</Text>
+                <Text style={[styles.ContinueButtonText, { marginLeft: 8 }]}>
+                  Saving…
+                </Text>
               </>
             ) : (
               <Text style={styles.ContinueButtonText}>Continue</Text>
@@ -216,7 +271,7 @@ export default function PersonalDetails() {
         </View>
       </View>
 
-      {/* DOB Modal */}
+      {/* Birth Date Modal */}
       <Modal
         visible={showAgePicker}
         transparent
@@ -233,8 +288,11 @@ export default function PersonalDetails() {
               onChange={onAgeChange}
               maximumDate={new Date()}
             />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowAgePicker(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowAgePicker(false)}
+            >
+              <Text style={styles.closeButtonText}>Choose</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -250,16 +308,31 @@ export default function PersonalDetails() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHandle} />
+
+            {/* Keep the picker open while user scrolls; only update tempSex here. */}
             <Picker
-              selectedValue={sex}
-              onValueChange={(value: Sex) => { setSex(value); setShowSexPicker(false); if (errors.sex) setErrors(p => ({...p, sex: undefined})); }}
+              selectedValue={tempSex}
+              onValueChange={(value: Sex) => {
+                setTempSex(value);
+              }}
             >
               <Picker.Item label="Select Sex" value="" />
               <Picker.Item label="Male" value="male" />
               <Picker.Item label="Female" value="female" />
             </Picker>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowSexPicker(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
+
+            {/* Apply selection and close only when the user explicitly confirms. */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setSex(tempSex);
+                if (errors.sex) {
+                  setErrors(p => ({ ...p, sex: undefined }));
+                }
+                setShowSexPicker(false);
+              }}
+            >
+              <Text style={styles.closeButtonText}>Choose</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -267,9 +340,6 @@ export default function PersonalDetails() {
     </>
   );
 }
-
-const CARD_MAX = 520;
-const ACCENT = '#0096c7';
 
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
@@ -384,6 +454,7 @@ const makeStyles = (c: AppColors) =>
       fontWeight: '700',
       letterSpacing: 0.3,
     },
+
     // Modals
     modalOverlay: {
       flex: 1,

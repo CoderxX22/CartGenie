@@ -17,13 +17,12 @@ import * as SecureStore from 'expo-secure-store';
 import Navbar from '@/components/navBar';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 import { useIllnesses } from '@/hooks/useIllnesses';
-import { routeToScreen } from 'expo-router/build/useScreens';
 
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 const BLOOD_KEY = 'BLOOD_TEST_LAST_UPLOAD';
 const TIME_FORMULA = 1000 * 60 * 60 * 24;
-const DAYS_IN_YEAR=365;
+const DAYS_IN_YEAR = 365;
 
 const DAILY_TIPS: string[] = [
   'Add at least one colorful vegetable to every meal.',
@@ -48,16 +47,26 @@ function formatShortDate(d: Date) {
 export default function HomePage() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
-  const firstName = params.firstName;
-  const username =params.username;
   const col = useAppColors();
   const styles = useMemo(() => makeStyles(col), [col]);
+
+  // Extract params (may come from onboarding or profile update flows)
+  const firstNameParam = params.firstName as string | undefined;
+  const usernameParam = params.username as string | undefined;
+  const lastNameParam = params.lastName as string | undefined;
+  const birthDateParam = params.birthDate as string | undefined;
+  const sexParam = params.sex as string | undefined;
+  const heightParam = params.height as string | undefined;
+  const weightParam = params.weight as string | undefined;
+  const waistParam = params.waist as string | undefined;
+  const illnessesParam = params.illnesses as string | undefined;
+
+  const greetingName = firstNameParam || usernameParam || 'there';
 
   const { hasSelection, loading: illnessesLoading } = useIllnesses([]);
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
   const [bloodLoading, setBloodLoading] = useState(true);
-  
+
   const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
@@ -77,151 +86,288 @@ export default function HomePage() {
     loadBloodDate();
   }, []);
 
-  // --- Logic ---
+  // Daily tip (stable during component life)
   const tip = useMemo(
     () => DAILY_TIPS[Math.floor(Math.random() * DAILY_TIPS.length)],
-    []
+    [],
   );
 
   const bloodStatus = useMemo(() => {
-    if (bloodLoading) return { icon: 'ellipse-outline', text: 'Loading...', color: col.subtitle };
-    if (!lastBloodTest) return { icon: 'ellipse-outline', text: 'Not uploaded yet', color: col.subtitle };
+    if (bloodLoading) {
+      return {
+        icon: 'ellipse-outline',
+        text: 'Loading...',
+        color: col.subtitle,
+      } as const;
+    }
+    if (!lastBloodTest) {
+      return {
+        icon: 'ellipse-outline',
+        text: 'Not uploaded yet',
+        color: col.subtitle,
+      } as const;
+    }
 
     const now = new Date();
-    const diff = (now.getTime() - lastBloodTest.getTime()) / TIME_FORMULA;
+    const diffDays = (now.getTime() - lastBloodTest.getTime()) / TIME_FORMULA;
     const formatted = formatShortDate(lastBloodTest);
 
-    if (diff > DAYS_IN_YEAR) return { icon: 'alert-circle', text: `Outdated (${formatted})`, color: '#f97316' };
-    return { icon: 'checkmark-circle', text: `Up to date (${formatted})`, color: '#22c55e' };
+    if (diffDays > DAYS_IN_YEAR) {
+      return {
+        icon: 'alert-circle',
+        text: `Outdated (${formatted})`,
+        color: '#f97316',
+      } as const;
+    }
+    return {
+      icon: 'checkmark-circle',
+      text: `Up to date (${formatted})`,
+      color: '#22c55e',
+    } as const;
   }, [bloodLoading, lastBloodTest, col.subtitle]);
 
-  // --- Handlers לתפריט ---
+  // Derived profile completion flags (purely from params / local state)
+  const personalCompleted = !!(
+    firstNameParam &&
+    lastNameParam &&
+    birthDateParam &&
+    sexParam
+  );
+
+  const bodyMeasuresCompleted = !!(
+    heightParam &&
+    weightParam &&
+    waistParam
+  );
+
+  const illnessesFromParams =
+    !!illnessesParam && illnessesParam !== '[]' && illnessesParam !== 'null';
+
+  const hasAnyIllnesses =
+    !illnessesLoading && (hasSelection || illnessesFromParams);
+
+  // --- Handlers for menu ---
   const handleUpdateInfo = () => {
     setMenuVisible(false);
     router.push({
       pathname: '/bodyMeasures',
-      params: { 
-        username, 
-      }
-    });  
+      params: {
+        username: usernameParam,
+      },
+    });
   };
 
   const handleHelp = () => {
     setMenuVisible(false);
-    router.push({pathname: '/(tabs)/helpScreen'});
+    router.push({ pathname: '/(tabs)/helpScreen' });
   };
 
   const handleLogout = () => {
     setMenuVisible(false);
     Alert.alert('Logout', 'Are you sure you want to logout?', [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-            text: 'Logout', 
-            style: 'destructive',
-            onPress: () => {
-              router.push({pathname: '/login'});
-            }
-        }
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => {
+          router.push({ pathname: '/login' });
+        },
+      },
     ]);
   };
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Home', headerShown: false ,gestureEnabled: false , headerLeft: () => null}} />
+      <Stack.Screen
+        options={{
+          title: 'Home',
+          headerShown: false,
+          gestureEnabled: false,
+          headerLeft: () => null,
+        }}
+      />
 
-      {/* --- תפריט צד (Modal) --- */}
+      {/* Side menu (Modal) */}
       <Modal
         visible={menuVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setMenuVisible(false)}
       >
         <View style={styles.modalOverlay}>
-            {/* לחיצה על הרקע השקוף סוגרת את התפריט */}
-            <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
-                <View style={styles.modalBackdrop} />
-            </TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
+            <View style={styles.modalBackdrop} />
+          </TouchableWithoutFeedback>
 
-            {/* תוכן התפריט */}
-            <View style={styles.menuContainer}>
-                <View style={styles.menuHeader}>
-                    <Text style={styles.menuTitle}>Menu</Text>
-                    <TouchableOpacity onPress={() => setMenuVisible(false)}>
-                        <Ionicons name="close" size={24} color={col.text} />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.menuItems}>
-                    <TouchableOpacity style={styles.menuItem} onPress={handleUpdateInfo}>
-                        <Ionicons name="person-outline" size={22} color={ACCENT} />
-                        <Text style={styles.menuItemText}>Update Personal Info</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
-                        <Ionicons name="help-circle-outline" size={22} color={ACCENT} />
-                        <Text style={styles.menuItemText}>Help</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.divider} />
-
-                    <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-                        <Ionicons name="log-out-outline" size={22} color="#ef4444" />
-                        <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Logout</Text>
-                    </TouchableOpacity>
-                </View>
+          <View style={styles.menuContainer}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Menu</Text>
+              <TouchableOpacity onPress={() => setMenuVisible(false)}>
+                <Ionicons name="close" size={24} color={col.text} />
+              </TouchableOpacity>
             </View>
+
+            <View style={styles.menuItems}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleUpdateInfo}
+              >
+                <Ionicons name="person-outline" size={22} color={ACCENT} />
+                <Text style={styles.menuItemText}>Update Personal Info</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
+                <Ionicons name="help-circle-outline" size={22} color={ACCENT} />
+                <Text style={styles.menuItemText}>Help</Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={22} color="#ef4444" />
+                <Text style={[styles.menuItemText, { color: '#ef4444' }]}>
+                  Logout
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingBottom: 96 }]}
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: 96 }, // space for bottom navbar
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>
           {/* Logo + Menu Button */}
           <View style={styles.logoRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                <View style={styles.logoCircle}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                flex: 1,
+              }}
+            >
+              <View style={styles.logoCircle}>
                 <Ionicons name="cart-outline" size={20} color="#fff" />
                 <Ionicons
-                    name="sparkles-outline"
-                    size={16}
-                    color="#FFEDD5"
-                    style={{ position: 'absolute', right: -4, top: -2 }}
+                  name="sparkles-outline"
+                  size={16}
+                  color="#FFEDD5"
+                  style={{ position: 'absolute', right: -4, top: -2 }}
                 />
-                </View>
-                <View style={{ flex: 1 }}>
-                <Text style={styles.title}>
-                    Hi {firstName}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>Hi, {greetingName}!</Text>
+                <Text style={styles.subtitle}>
+                  Let&apos;s make your cart healthier.
                 </Text>
-                <Text style={styles.subtitle}>Let's make your cart healthier.</Text>
-                </View>
+              </View>
             </View>
-            
-            {/* כפתור המבורגר לפתיחת התפריט */}
-            <TouchableOpacity 
-                style={styles.menuButton} 
-                onPress={() => setMenuVisible(true)}
+
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => setMenuVisible(true)}
             >
-                <Ionicons name="menu" size={28} color={col.text} />
+              <Ionicons name="menu" size={28} color={col.text} />
             </TouchableOpacity>
           </View>
 
-          {/* Status */}
+          {/* Profile status */}
           <View style={styles.statusCard}>
             <Text style={styles.statusTitle}>Profile status</Text>
+
             <View style={styles.statusRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-              <Text style={styles.statusText}>Personal info completed</Text>
+              <Ionicons
+                name={
+                  personalCompleted ? 'checkmark-circle' : 'ellipse-outline'
+                }
+                size={18}
+                color={personalCompleted ? '#22c55e' : col.subtitle}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  !personalCompleted && { color: col.subtitle },
+                ]}
+              >
+                {personalCompleted
+                  ? 'Personal info completed'
+                  : 'Personal info missing'}
+              </Text>
             </View>
+
             <View style={styles.statusRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-              <Text style={styles.statusText}>Body measures completed</Text>
+              <Ionicons
+                name={
+                  bodyMeasuresCompleted
+                    ? 'checkmark-circle'
+                    : 'ellipse-outline'
+                }
+                size={18}
+                color={bodyMeasuresCompleted ? '#22c55e' : col.subtitle}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  !bodyMeasuresCompleted && { color: col.subtitle },
+                ]}
+              >
+                {bodyMeasuresCompleted
+                  ? 'Body measures completed'
+                  : 'Body measures missing'}
+              </Text>
             </View>
+
             <View style={styles.statusRow}>
-              <Ionicons name={bloodStatus.icon as any} size={18} color={bloodStatus.color} />
-              <Text style={[styles.statusText, { color: bloodStatus.color }]}>
+              <Ionicons
+                name={bloodStatus.icon as any}
+                size={18}
+                color={bloodStatus.color}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: bloodStatus.color },
+                ]}
+              >
                 {bloodStatus.text}
+              </Text>
+            </View>
+
+            <View style={styles.statusRow}>
+              <Ionicons
+                name={
+                  illnessesLoading
+                    ? ('ellipse-outline' as const)
+                    : hasAnyIllnesses
+                    ? ('checkmark-circle' as const)
+                    : ('ellipse-outline' as const)
+                }
+                size={18}
+                color={
+                  illnessesLoading
+                    ? col.subtitle
+                    : hasAnyIllnesses
+                    ? '#22c55e'
+                    : col.subtitle
+                }
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  !hasAnyIllnesses && { color: col.subtitle },
+                ]}
+              >
+                {illnessesLoading
+                  ? 'Health conditions loading...'
+                  : hasAnyIllnesses
+                  ? 'Health conditions selected'
+                  : 'Health conditions not selected yet'}
               </Text>
             </View>
           </View>
@@ -238,7 +384,9 @@ export default function HomePage() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.primaryTitle}>Scan receipt</Text>
-              <Text style={styles.primarySubtitle}>Upload or scan grocery receipt.</Text>
+              <Text style={styles.primarySubtitle}>
+                Upload or scan grocery receipt.
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#E0F2FE" />
           </TouchableOpacity>
@@ -253,7 +401,9 @@ export default function HomePage() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.secondaryTitle}>Scan product</Text>
-              <Text style={styles.secondarySubtitle}>Check single product details.</Text>
+              <Text style={styles.secondarySubtitle}>
+                Check single product details.
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={col.subtitle} />
           </TouchableOpacity>
@@ -279,15 +429,16 @@ export default function HomePage() {
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     container: {
+      flexGrow: 1,
       alignItems: 'center',
-      padding: 16,
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 24,
       backgroundColor: c.background,
-      minHeight: '100%',
     },
     card: {
       width: '100%',
       maxWidth: CARD_MAX,
-      marginTop: 32,
       backgroundColor: c.card,
       borderRadius: 18,
       paddingHorizontal: 20,
@@ -330,22 +481,24 @@ const makeStyles = (c: AppColors) =>
       marginTop: 2,
     },
     menuButton: {
-        padding: 4,
+      padding: 4,
     },
+
+    // Status card uses theme colors (works in dark mode)
     statusCard: {
       marginTop: 4,
       marginBottom: 18,
       paddingVertical: 12,
       paddingHorizontal: 12,
       borderRadius: 14,
-      backgroundColor: '#E0F2FE',
+      backgroundColor: c.background,
       borderWidth: 1,
-      borderColor: '#BAE6FD',
+      borderColor: c.inputBorder,
     },
     statusTitle: {
       fontSize: 13,
       fontWeight: '700',
-      color: '#0F172A',
+      color: c.text,
       marginBottom: 6,
     },
     statusRow: {
@@ -356,8 +509,9 @@ const makeStyles = (c: AppColors) =>
     },
     statusText: {
       fontSize: 13,
-      color: '#0F172A',
+      color: c.text,
     },
+
     sectionTitle: {
       fontSize: 15,
       fontWeight: '700',
@@ -452,64 +606,69 @@ const makeStyles = (c: AppColors) =>
       color: c.text,
       marginTop: 2,
     },
-    
-    // --- Menu Modal Styles ---
+
+    // Menu Modal Styles
     modalOverlay: {
-        flex: 1,
-        flexDirection: 'row',
-        justifyContent: 'flex-start', // תפריט מצד שמאל
-        backgroundColor: 'rgba(0,0,0,0.5)', // רקע חצי שקוף
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'flex-start',
+      backgroundColor: 'rgba(0,0,0,0.5)',
     },
     modalBackdrop: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
     },
     menuContainer: {
-        width: '75%', // רוחב התפריט
-        maxWidth: 300,
-        backgroundColor: c.card,
-        height: '100%',
-        paddingVertical: 40,
-        paddingHorizontal: 20,
-        ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 },
-            android: { elevation: 5 },
-        }),
+      width: '75%',
+      maxWidth: 300,
+      backgroundColor: c.card,
+      height: '100%',
+      paddingVertical: 40,
+      paddingHorizontal: 20,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 2, height: 0 },
+          shadowOpacity: 0.25,
+          shadowRadius: 5,
+        },
+        android: { elevation: 5 },
+      }),
     },
     menuHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 30,
-        paddingBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: c.inputBorder,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 30,
+      paddingBottom: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: c.inputBorder,
     },
     menuTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: c.text,
+      fontSize: 22,
+      fontWeight: '800',
+      color: c.text,
     },
     menuItems: {
-        gap: 16,
+      gap: 16,
     },
     menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      paddingVertical: 12,
     },
     menuItemText: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: c.text,
+      fontSize: 16,
+      fontWeight: '500',
+      color: c.text,
     },
     divider: {
-        height: 1,
-        backgroundColor: c.inputBorder,
-        marginVertical: 10,
+      height: 1,
+      backgroundColor: c.inputBorder,
+      marginVertical: 10,
     },
   });
