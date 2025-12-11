@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Pressable,
+  Alert,              // 👈 added
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
@@ -82,15 +83,46 @@ export default function SignUpScreen() {
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-  
+
+  // 👇 handler to show funny Terms & Privacy Policy
+  const showTerms = () => {
+    Alert.alert(
+      'CartGenie Terms & Privacy Policy',
+      [
+        '1. Introduction',
+        'By creating an account you agree that CartGenie will try its best not to judge your snack choices, only to analyze them nicely.',
+        '',
+        '2. Use of the App',
+        'You agree not to use CartGenie while sleep-walking through the supermarket or driving a shopping cart at unsafe speeds.',
+        '',
+        '3. Data We Collect',
+        'We may store basic profile data and nutrition-related information. We will never sell your BMI to your gym trainer or your mother-in-law.',
+        '',
+        '4. Health Disclaimer',
+        'CartGenie does not replace your doctor, dietitian, or that one very opinionated friend. All suggestions are informational and not medical advice.',
+        '',
+        '5. Cookies & Snacks',
+        'We use digital “cookies”, not the edible kind. Real cookies are still your responsibility (but we may gently comment on them).',
+        '',
+        '6. Account Safety',
+        'You are responsible for keeping your password safe and not writing it on a Post-it attached to your fridge.',
+        '',
+        '7. Changes to These Terms',
+        'We may update these Terms when CartGenie learns new tricks. We will try not to change anything right before your exam or big deadline.',
+        '',
+        '8. Contact',
+        'If you have questions, feedback, or brilliant feature ideas, please shout “Genie!” (or just contact our support).',
+      ].join('\n')
+    );
+  };
 
   const onSubmit = async () => {
     if (loading) return;
     if (!validate()) return;
-  
+
     try {
       setLoading(true);
-  
+
       const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,20 +132,19 @@ export default function SignUpScreen() {
           password: pwd,
         }),
       });
-  
+
       const data = await res.json();
-  
+
       if (!data.success) {
         alert(data.message || "Registration failed");
         return;
       }
-  
+
       router.push("/login");
     } finally {
       setLoading(false);
     }
   };
-  
 
   const disabled = loading || !email || !username || !pwd || !pwd2 || !accept;
 
@@ -137,7 +168,10 @@ export default function SignUpScreen() {
                   autoCapitalize="none"
                   autoComplete="email"
                   value={email}
-                  onChangeText={(t) => { setEmail(t); if (errors.email) setErrors(prev => ({...prev, email: undefined})); }}
+                  onChangeText={(t) => {
+                    setEmail(t);
+                    if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+                  }}
                   returnKeyType="next"
                 />
                 {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
@@ -153,7 +187,10 @@ export default function SignUpScreen() {
                   autoCapitalize="none"
                   autoComplete="username"
                   value={username}
-                  onChangeText={(t) => { setUsername(t); if (errors.username) setErrors(prev => ({...prev, username: undefined})); }}
+                  onChangeText={(t) => {
+                    setUsername(t);
+                    if (errors.username) setErrors(prev => ({ ...prev, username: undefined }));
+                  }}
                   returnKeyType="next"
                 />
                 {!!errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
@@ -170,7 +207,10 @@ export default function SignUpScreen() {
                     secureTextEntry={!showPwd}
                     autoComplete="new-password"
                     value={pwd}
-                    onChangeText={(t) => { setPwd(t); if (errors.pwd) setErrors(prev => ({...prev, pwd: undefined})); }}
+                    onChangeText={(t) => {
+                      setPwd(t);
+                      if (errors.pwd) setErrors(prev => ({ ...prev, pwd: undefined }));
+                    }}
                     returnKeyType="next"
                   />
                   <Pressable onPress={() => setShowPwd(s => !s)} hitSlop={10} style={styles.eyeBtn}>
@@ -218,7 +258,10 @@ export default function SignUpScreen() {
                     secureTextEntry={!showPwd2}
                     autoComplete="new-password"
                     value={pwd2}
-                    onChangeText={(t) => { setPwd2(t); if (errors.pwd2) setErrors(prev => ({...prev, pwd2: undefined})); }}
+                    onChangeText={(t) => {
+                      setPwd2(t);
+                      if (errors.pwd2) setErrors(prev => ({ ...prev, pwd2: undefined }));
+                    }}
                     returnKeyType="done"
                     onSubmitEditing={onSubmit}
                   />
@@ -230,9 +273,21 @@ export default function SignUpScreen() {
               </View>
 
               {/* Terms */}
-              <Pressable style={styles.termsRow} onPress={() => setAccept(a => !a)}>
-                <Ionicons name={accept ? 'checkbox' : 'square-outline'} size={20} color={accept ? ACCENT : col.subtitle} />
-                <Text style={styles.termsText}> I accept the Terms and Privacy Policy</Text>
+              <Pressable
+                style={styles.termsRow}
+                onPress={() => setAccept(a => !a)}
+              >
+                <Ionicons
+                  name={accept ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={accept ? ACCENT : col.subtitle}
+                />
+                <Text style={styles.termsText}>
+                  {' '}I accept the{' '}
+                  <Text style={styles.termsLink} onPress={showTerms}>
+                    Terms and Privacy Policy
+                  </Text>
+                </Text>
               </Pressable>
               {!!errors.accept && <Text style={styles.errorText}>{errors.accept}</Text>}
 
@@ -356,8 +411,23 @@ const makeStyles = (c: AppColors) =>
       borderColor: c.inputBorder,
     },
     eyeBtn: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 10 },
-    termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 6 },
-    termsText: { marginLeft: 8, color: c.text },
+    termsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 6,
+      marginBottom: 6,
+      flexWrap: 'wrap',
+    },
+    termsText: {
+      marginLeft: 8,
+      color: c.text,
+      flexShrink: 1,
+    },
+    termsLink: {
+      color: ACCENT,
+      textDecorationLine: 'underline',
+      fontWeight: '600',
+    },
     loginButton: {
       width: '100%',
       backgroundColor: ACCENT,

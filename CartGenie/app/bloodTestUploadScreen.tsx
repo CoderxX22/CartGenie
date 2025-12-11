@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,11 +21,32 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import UserDataService, { UserProfilePayload } from '../components/userDataServices'; 
 
 const ACCENT = '#0096c7';
+const CARD_MAX = 520;
 
 interface ServerResponse {
   rawText?: string;
   diagnosis: string[];
 }
+
+type PickedFile = {
+  uri: string;
+  name: string;
+  mimeType: string;
+};
+
+type SearchParams = {
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
+  ageYears?: string;
+  sex?: string;
+  height?: string;
+  weight?: string;
+  waist?: string;
+  bmi?: string;
+  whtr?: string;
+};
 
 export default function BloodTestUploadScreen() {
   const router = useRouter();
@@ -34,7 +55,7 @@ export default function BloodTestUploadScreen() {
   const { username, firstName, lastName, birthDate, ageYears, sex,
     height, weight, waist, bmi, whtr  } = params;
 
-  const [file, setFile] = useState<any>(null);
+  const [file, setFile] = useState<PickedFile | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<ServerResponse | null>(null);
@@ -45,7 +66,7 @@ export default function BloodTestUploadScreen() {
   };
 
   const chooseSource = () => {
-    Alert.alert('Select Source', 'Choose source', [
+    Alert.alert('Select Source', 'Choose where to upload your blood test from:', [
       { text: 'Take Photo', onPress: takePhoto },
       { text: 'Library', onPress: pickFromLibrary },
       { text: 'Document', onPress: pickDocument },
@@ -55,31 +76,51 @@ export default function BloodTestUploadScreen() {
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return;
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Camera access is needed to take a photo.');
+      return;
+    }
+
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setFile({ uri: result.assets[0].uri, name: `photo.jpg`, mimeType: 'image/jpeg' });
+      setFile({
+        uri: result.assets[0].uri,
+        name: 'photo.jpg',
+        mimeType: 'image/jpeg',
+      });
       setAnalysisResults(null);
     }
   };
-  
+
   const pickFromLibrary = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
-      setFile({ uri: result.assets[0].uri, name: result.assets[0].fileName || 'image.jpg', mimeType: 'image/jpeg' });
+      setFile({
+        uri: result.assets[0].uri,
+        name: result.assets[0].fileName || 'image.jpg',
+        mimeType: 'image/jpeg',
+      });
       setAnalysisResults(null);
     }
   };
 
   const pickDocument = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'] });
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+      });
+
       if (!result.canceled && result.assets[0]) {
-        setFile({ uri: result.assets[0].uri, name: result.assets[0].name, mimeType: result.assets[0].mimeType || 'application/pdf' });
+        setFile({
+          uri: result.assets[0].uri,
+          name: result.assets[0].name,
+          mimeType: result.assets[0].mimeType || 'application/pdf',
+        });
         setAnalysisResults(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Document Picker Error:', err);
+      Alert.alert('Error', 'Could not open document picker.');
     }
   };
 
@@ -115,17 +156,34 @@ export default function BloodTestUploadScreen() {
       });
 
       const jsonResponse = await response.json();
+      console.log('🧪 Blood test response raw:', jsonResponse);
 
-      if (!jsonResponse.success) {
+      if (!response.ok || !jsonResponse.success) {
         throw new Error(jsonResponse.message || 'Server returned an error');
       }
 
-      setAnalysisResults(jsonResponse.data);
-      Alert.alert('Success', 'Analysis complete!');
+      const data: ServerResponse = jsonResponse.data ?? { diagnosis: [] };
 
+      // Console preview for DB payload (blood test–specific)
+      const dbPayloadPreview = {
+        ...(params as any),
+        sourceFileName: file.name,
+        diagnosis: data.diagnosis,
+        rawText: data.rawText ?? '',
+      };
+      console.log(
+        '💾 BloodTest – payload for database preview (analysis only):',
+        dbPayloadPreview,
+      );
+
+      setAnalysisResults(data);
+      Alert.alert('Success', 'Analysis complete!');
     } catch (error: any) {
       console.error('Upload Error:', error);
-      Alert.alert('Error', 'Failed to analyze document. Please try again.');
+      Alert.alert(
+        'Error',
+        error?.message || 'Failed to analyze document. Please try again.',
+      );
     } finally {
       setIsAnalyzing(false);
     }
@@ -202,27 +260,42 @@ export default function BloodTestUploadScreen() {
     }
   };
 
+  const hasResults = !!analysisResults;
+
   return (
     <>
-      <Stack.Screen options={{ title: 'Upload Blood Test' }} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Upload Blood Test',
+          headerShown: true,
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.card}>
           <Text style={styles.title}>Blood Test Upload</Text>
           <Text style={styles.subtitle}>
-            Upload Your file for a better matching of products.
+            Upload your recent blood test for a more accurate product matching.
           </Text>
 
           {firstName && (
             <View style={styles.usernameBanner}>
-              <Ionicons name="person-circle" size={20} color={ACCENT} />
-              <Text style={styles.usernameText}>{firstName}</Text>
+              <Ionicons
+                name="person-circle"
+                size={20}
+                color={col.accent ?? ACCENT}
+              />
+              <Text style={styles.usernameText}>Hi, {firstName}</Text>
             </View>
           )}
 
+          {/* File selection area */}
           <View style={styles.dropZone}>
             <View style={{ alignItems: 'center', gap: 6 }}>
               <Text style={styles.dropTitle}>
-                {file ? 'File Ready to Upload' : 'Select File'}
+                {file ? 'File ready to upload' : 'Select your blood test file'}
               </Text>
               {file && <Text style={styles.fileName}>{file.name}</Text>}
             </View>
@@ -239,7 +312,7 @@ export default function BloodTestUploadScreen() {
             disabled={!file || isAnalyzing || isSaving}
           >
             {isAnalyzing ? (
-              <View style={{flexDirection: 'row', gap: 10}}>
+              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                 <ActivityIndicator color="#fff" />
                 <Text style={styles.submitText}>Analyzing...</Text>
               </View>
@@ -255,22 +328,23 @@ export default function BloodTestUploadScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Analysis results */}
           {analysisResults && (
             <View style={styles.resultsContainer}>
               <View style={styles.divider} />
-              <Text style={styles.resultsTitle}>📊 Results:</Text>
-              
-              <View style={styles.tagsContainer}>
-                {analysisResults.diagnosis.map((diag, index) => (
-                  <View key={index} style={styles.diagnosisTag}>
-                    <Ionicons name="medkit-outline" size={16} color="#B91C1C" />
-                    <Text style={styles.diagnosisText}>{diag}</Text>
-                  </View>
-                ))}
-                 {analysisResults.diagnosis.length === 0 && (
-                    <Text style={{color: 'green'}}>No abnormal conditions detected.</Text>
-                )}
-              </View>
+              <Text style={styles.resultsTitle}>📊 Analysis Results</Text>
+              <Text style={styles.secureSubtitle}>Your data securely safed!</Text>
+
+              {/* Only show list if there are any visible diagnoses */}
+              {visibleDiagnosis.length > 0 && (
+                <View style={styles.resultsList}>
+                  {visibleDiagnosis.map((diag, index) => (
+                    <Text key={index} style={styles.diagnosisLine}>
+                      • {diag}
+                    </Text>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -290,7 +364,6 @@ export default function BloodTestUploadScreen() {
                 )}
             </TouchableOpacity>
           )}
-
         </View>
       </ScrollView>
     </>

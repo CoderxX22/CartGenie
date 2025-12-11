@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Stack, useRouter, Link, Href } from 'expo-router';
 import {
   View,
@@ -7,7 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
-  Dimensions,
   Alert,
   ActivityIndicator,
   BackHandler,
@@ -18,7 +17,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../src/config/api';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
-const { width } = Dimensions.get('window');
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
 
@@ -41,13 +39,18 @@ export default function LoginScreen() {
     return () => backHandlerSubscription.remove();
   }, []);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
+  const handleLogin = useCallback(async () => {
+    const usernameTrim = username.trim();
+    const passwordTrim = password.trim();
+
+    if (!usernameTrim || !passwordTrim) {
       Alert.alert('Missing information', 'Please fill in both fields before logging in.');
       return;
     }
     if (isLoading) return;
-    
+
+    setIsLoading(true);
+
     try {
       setIsLoading(true);
       const cleanUsername = username.trim().toLowerCase();
@@ -58,12 +61,16 @@ export default function LoginScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: cleanUsername, password }),
       });
-  
-      const loginData = await loginRes.json();
-  
-      if (!loginData.success) {
-        Alert.alert('Login failed', loginData.message || 'Please try again.');
-        setIsLoading(false);
+
+      let loginData: any = null;
+      try {
+        loginData = await loginRes.json();
+      } catch {
+        // If the server didn't return JSON, handle it gracefully.
+      }
+
+      if (!loginRes.ok || !loginData?.success) {
+        Alert.alert('Login failed', loginData?.message || 'Invalid credentials or server error.');
         return;
       }
   
@@ -130,20 +137,32 @@ export default function LoginScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [username, password, isLoading, router]);
 
-  const isDisabled = isLoading || !username.trim() || !password.trim();
+  // Google auth is intentionally not wired yet.
+  const handleGoogleLogin = useCallback(() => {
+    Alert.alert('Coming soon', 'Google sign-in will be available in a future build.');
+  }, []);
+
+  const handleForgotPassword = useCallback(() => {
+    Alert.alert('Not implemented', 'Password recovery is not available yet.');
+  }, []);
+
+  const usernameTrim = username.trim();
+  const passwordTrim = password.trim();
+  const isDisabled = isLoading || !usernameTrim || !passwordTrim;
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
-          headerShown: false, 
+      <Stack.Screen
+        options={{
+          headerShown: false,
           title: 'Login',
           gestureEnabled: false, 
           headerLeft: () => null,
-        }} 
+        }}
       />
+
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Welcome To CartGenie</Text>
@@ -155,9 +174,11 @@ export default function LoginScreen() {
               style={styles.input}
               placeholderTextColor={col.subtitle}
               autoCapitalize="none"
+              autoCorrect={false}
               value={username}
               onChangeText={setUsername}
               editable={!isLoading}
+              returnKeyType="next"
             />
           </View>
 
@@ -171,14 +192,13 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               editable={!isLoading}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
             />
           </View>
 
           <TouchableOpacity
-            style={[
-              styles.loginButton,
-              isDisabled && { opacity: 0.5 },
-            ]}
+            style={[styles.loginButton, isDisabled && { opacity: 0.5 }]}
             onPress={handleLogin}
             activeOpacity={0.9}
             disabled={isDisabled}
@@ -193,7 +213,12 @@ export default function LoginScreen() {
             ) : (
               <>
                 <Text style={styles.loginButtonText}>Login</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+                <Ionicons
+                  name="arrow-forward"
+                  size={20}
+                  color="#fff"
+                  style={{ marginLeft: 8 }}
+                />
               </>
             )}
           </TouchableOpacity>
@@ -205,15 +230,16 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity
-            style={styles.googleButton}
+            style={[styles.googleButton, isLoading && { opacity: 0.6 }]}
             activeOpacity={0.9}
             disabled={isLoading}
+            onPress={handleGoogleLogin}
           >
             <Ionicons name="logo-google" size={20} />
             <Text style={styles.googleButtonText}>Connect via Google</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity disabled={isLoading}>
+          <TouchableOpacity disabled={isLoading} onPress={handleForgotPassword}>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
 
