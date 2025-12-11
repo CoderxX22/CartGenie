@@ -16,6 +16,8 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIllnesses } from '@/hooks/useIllnesses';
 import UserDataService from '@/components/userDataServices';
+// 👇 תוספת: ייבוא AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ACCENT = '#0096c7';
 const CARD_MAX = 520;
@@ -96,11 +98,10 @@ export default function IllnessesScreen() {
     return ILLNESSES.filter((a) => a.toLowerCase().includes(q));
   }, [query]);
 
+  // 👇 הפונקציה המעודכנת עם לוגיקת השמירה המקומית
   const saveDataAndNavigate = async (illnessesList: string[], otherText: string) => {
     setIsSaving(true);
     try {
-      // תיקון השגיאה: שימוש ב-any מאפשר לנו לשלוח אובייקט חלקי
-      // TypeScript לא יצעק שחסרים שדות חובה
       const payload: any = {
         illnesses: illnessesList,
         otherIllnesses: otherText,
@@ -119,8 +120,18 @@ export default function IllnessesScreen() {
       if (bmi) payload.bmi = String(bmi);
       if (whtr) payload.whtr = String(whtr);
 
+      console.log('💾 Saving profile to Server DB...');
+      
+      // 1. שמירה בשרת (DB)
       await UserDataService.saveUserProfile(payload);
 
+      // 2. 👇 שמירה בזיכרון המקומי (כדי שהסורק יזהה את המשתמש)
+      if (payload.username) {
+          await AsyncStorage.setItem('loggedInUser', payload.username);
+          console.log('✅ Username saved locally:', payload.username);
+      }
+
+      // 3. מעבר לדף הבית
       router.push({
         pathname: '/(tabs)/homePage',
         params: {
@@ -131,6 +142,7 @@ export default function IllnessesScreen() {
       });
 
     } catch (error: any) {
+      console.error("Save Error:", error);
       Alert.alert(
         'Save Error', 
         error.message || 'Could not save your profile. Please check your connection.'

@@ -10,6 +10,8 @@ import productsRouter from './src/routes/productRoute.js';
 import bloodTestRouter from './src/routes/bloodTestRoute.js'; // ✅ תוקן השם
 import ocrRouter from './src/routes/ocrRoute.js';
 
+import aiRoute from './src/routes/aiRoute.js';
+
 const app = express();
 
 app.use(cors({ origin: true }));
@@ -29,6 +31,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/userdata', userDataRouter);
 app.use('/api/ocr', ocrRouter);
+app.use('/api/ai', aiRoute);
 
 // ✅ זה הנתיב החשוב! הוא מפנה את כל הבקשות שמגיעות ל-/api/blood-test לקובץ הראוטר שיצרנו
 app.use('/api/blood-test', bloodTestRouter); 

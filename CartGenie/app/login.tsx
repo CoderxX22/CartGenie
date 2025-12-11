@@ -10,9 +10,11 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
-  BackHandler, // ייבוא לטיפול בכפתור חזרה באנדרואיד
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// 👇 תוספת: ייבוא AsyncStorage לשמירת ה-Session
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { API_URL } from '../src/config/api';
 import { useAppColors, AppColors } from '@/components/appThemeProvider';
 
@@ -30,18 +32,12 @@ export default function LoginScreen() {
 
   const styles = useMemo(() => makeStyles(col), [col]);
 
-  // חסימת כפתור חזרה פיזי (בעיקר לאנדרואיד)
-  // זה מונע חזרה למסך קודם (כמו מסך Splash או Logout) כשנמצאים במסך ההתחברות
+  // חסימת כפתור חזרה פיזי באנדרואיד
   useEffect(() => {
     const onBackPress = () => {
-      // החזרת true מונעת את הפעולה הדיפולטיבית (חזרה אחורה)
       return true; 
     };
-
-    // הוספת המאזין לכפתור החזרה
     const backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-
-    // פונקציית הניקוי מסירה את המאזין
     return () => backHandlerSubscription.remove();
   }, []);
 
@@ -54,12 +50,13 @@ export default function LoginScreen() {
     
     try {
       setIsLoading(true);
+      const cleanUsername = username.trim().toLowerCase();
   
-      // 1. אימות שם משתמש וסיסמה
+      // 1. אימות שם משתמש וסיסמה (Auth)
       const loginRes = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: cleanUsername, password }),
       });
   
       const loginData = await loginRes.json();
@@ -70,29 +67,59 @@ export default function LoginScreen() {
         return;
       }
   
-      // 2. בדיקת נתונים קיימים
-      const userDataRes = await fetch(`${API_URL}/api/userdata/${username.trim()}`);
+      // 2. שליפת הנתונים המלאים של המשתמש (UserData)
+      const userDataRes = await fetch(`${API_URL}/api/userdata/${cleanUsername}`);
       
       if (userDataRes.status === 200) {
-        const userDataJson = await userDataRes.json();
-        const firstName = userDataJson.data?.personalDetails?.firstName || username.trim();
+        const json = await userDataRes.json();
+        const userData = json.data; // הנתונים הגולמיים מה-DB
 
-        // שימוש ב-replace כדי להחליף את המסך הנוכחי
-        // כך המשתמש לא יוכל ללחוץ "חזור" ממסך הבית ולהגיע שוב להתחברות
+        // ✅ שמירה לזיכרון המקומי (פותר את בעיית ה-Guest בסריקה)
+        await AsyncStorage.setItem('loggedInUser', cleanUsername);
+        console.log('✅ Logged in & saved locally:', cleanUsername);
+
+        // ✅ הכנת כל הנתונים להעברה ל-Home Screen
+        // אנחנו מפרקים את המבנה המקונן של MongoDB למבנה שטוח של Params
+        const allUserParams = {
+            username: cleanUsername,
+            
+            // Personal Details
+            firstName: userData.personalDetails?.firstName || '',
+            lastName: userData.personalDetails?.lastName || '',
+            birthDate: userData.personalDetails?.birthDate || '',
+            ageYears: userData.personalDetails?.age?.toString() || '',
+            sex: userData.personalDetails?.sex || '',
+            
+            // Body Measurements
+            weight: userData.bodyMeasurements?.weight?.toString() || '',
+            height: userData.bodyMeasurements?.height?.toString() || '',
+            waist: userData.bodyMeasurements?.waist?.toString() || '',
+            bmi: userData.bodyMeasurements?.bmi?.toString() || '',
+            whtr: userData.bodyMeasurements?.whtr?.toString() || '',
+
+            // Medical Data
+            // המרה של מערך האובייקטים למחרוזת JSON כדי שיוכל לעבור ב-Params
+            illnesses: JSON.stringify(
+                userData.medicalData?.illnesses?.map((i: any) => i.name) || []
+            ),
+            otherIllnesses: userData.medicalData?.otherIllnesses || '',
+        };
+
+        // ניווט למסך הבית עם כל הנתונים
         router.replace({
             pathname: '/(tabs)/homePage',
-            params: {
-                username: username.trim(),
-                firstName: firstName
-            }
+            params: allUserParams
         });
 
       } else {
-        // גם כאן replace כדי למנוע חזרה
+        // אם המשתמש קיים ב-Auth אבל אין לו UserData (מצב נדיר, אולי נרשם ונתקע באמצע)
+        // שומרים לוגין בכל זאת ומעבירים להשלמת פרטים
+        await AsyncStorage.setItem('loggedInUser', cleanUsername);
+        
         router.replace({
             pathname: '/personalDetails',
             params: {
-              username: username.trim(),
+              username: cleanUsername,
             },
         });
       }
@@ -113,9 +140,7 @@ export default function LoginScreen() {
         options={{ 
           headerShown: false, 
           title: 'Login',
-          // מניעת מחוות חזרה (Swipe back) ב-iOS
           gestureEnabled: false, 
-          // הסתרת כפתור חזור בשורת הכותרת (אם קיים)
           headerLeft: () => null,
         }} 
       />

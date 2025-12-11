@@ -14,6 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '../src/config/api'; 
+// 👇 תוספת 1: ייבוא AsyncStorage לשמירה מקומית
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ייבוא השירות לשמירת הנתונים
+import UserDataService, { UserProfilePayload } from '../components/userDataServices'; 
 
 const ACCENT = '#0096c7';
 
@@ -26,11 +31,18 @@ export default function BloodTestUploadScreen() {
   const router = useRouter();
   
   const params = useLocalSearchParams();
-  const { firstName } = params;
+  const { username, firstName, lastName, birthDate, ageYears, sex,
+    height, weight, waist, bmi, whtr  } = params;
 
   const [file, setFile] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<ServerResponse | null>(null);
+
+  const getStringParam = (param: string | string[] | undefined): string => {
+    if (Array.isArray(param)) return param[0];
+    return param || '';
+  };
 
   const chooseSource = () => {
     Alert.alert('Select Source', 'Choose source', [
@@ -81,6 +93,10 @@ export default function BloodTestUploadScreen() {
       const formData = new FormData();
       const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
       
+      const usernameString = getStringParam(username);
+      
+      formData.append('username', usernameString || 'Guest'); 
+
       // @ts-ignore
       formData.append('bloodTestFile', {
         uri: cleanUri,
@@ -115,37 +131,75 @@ export default function BloodTestUploadScreen() {
     }
   };
 
-  // 🔥 פונקציה למעבר ידני למסך בחירת מחלות
   const handleManualSelect = () => {
     router.push({
-      pathname: '/illnessesScreen', // וודא שזה הנתיב הנכון בקבצים שלך
-      params: {
-        ...(params as any), // מעביר את כל הפרמטרים (שם, גובה, משקל וכו')
-      },
+      pathname: '/illnessesScreen',
+      params: { ...(params as any) },
     });
   };
 
-  const handleContinue = () => {
-    // עיבוד המחלות שנמצאו בבדיקת הדם
+  // 👇 הפונקציה המעודכנת - כאן השינוי הגדול
+  const handleContinue = async () => {
+    if (isSaving) return;
+
+    // 1. עיבוד המחלות
     const detectedConditions: string[] = [];
-    
-    // אם יש תוצאות, נבדוק מה נמצא
     if (analysisResults) {
       if (analysisResults.diagnosis.includes('High Cholesterol')) detectedConditions.push('High cholesterol');
       if (analysisResults.diagnosis.includes('Type 2 Diabetes')) detectedConditions.push('Diabetes Type 2');
       if (analysisResults.diagnosis.includes('High Blood Pressure (Sodium)')) detectedConditions.push('High blood pressure (Hypertension)');
     }
-    
     if (detectedConditions.length === 0) detectedConditions.push('does not ill');
 
-    // 📤 שליחה סופית ל-Home Page
-    router.push({
-      pathname: '/(tabs)/homePage',
-      params: {
-        ...(params as any),
-        illnesses: JSON.stringify(detectedConditions),
-      },
-    });
+    // 2. יצירת ה-Payload
+    const payload: UserProfilePayload = {
+        username: getStringParam(username),
+        firstName: getStringParam(firstName),
+        lastName: getStringParam(lastName),
+        birthDate: getStringParam(birthDate),
+        sex: getStringParam(sex),
+        ageYears: getStringParam(ageYears),
+        weight: getStringParam(weight),
+        height: getStringParam(height),
+        waist: getStringParam(waist),
+        bmi: getStringParam(bmi),
+        whtr: getStringParam(whtr),
+        illnesses: detectedConditions,
+        otherIllnesses: '', 
+    };
+
+    try {
+        setIsSaving(true);
+        
+        // שלב א: שמירה בשרת (DB) - נשאר כמו שהיה
+        console.log('💾 Saving to Server DB...');
+        await UserDataService.saveUserProfile(payload);
+
+        // 👇 תוספת 2: שמירה מקומית (Local Storage)
+        // זה מבטיח שהמשתמש לא "יאבד" במעבר למסכים הבאים
+        if (payload.username) {
+            await AsyncStorage.setItem('loggedInUser', payload.username);
+            console.log('✅ Username saved locally:', payload.username);
+        }
+
+        // שלב ג: מעבר למסך הבית
+        router.push({
+            pathname: '/(tabs)/homePage',
+            params: {
+                // אנחנו מעבירים גם ב-Params ליתר ביטחון
+                username: payload.username,
+                firstName: payload.firstName,
+                // ...שאר הפרמטרים
+                illnesses: JSON.stringify(payload.illnesses), 
+            },
+        });
+
+    } catch (error) {
+        console.error("Save Error:", error);
+        Alert.alert("Error", "Failed to save your profile. Please try again.");
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   return (
@@ -158,7 +212,6 @@ export default function BloodTestUploadScreen() {
             Upload Your file for a better matching of products.
           </Text>
 
-          {/* הצגת השם במידה והתקבל */}
           {firstName && (
             <View style={styles.usernameBanner}>
               <Ionicons name="person-circle" size={20} color={ACCENT} />
@@ -174,17 +227,16 @@ export default function BloodTestUploadScreen() {
               {file && <Text style={styles.fileName}>{file.name}</Text>}
             </View>
 
-            <TouchableOpacity style={styles.browseBtn} onPress={chooseSource} disabled={isAnalyzing}>
+            <TouchableOpacity style={styles.browseBtn} onPress={chooseSource} disabled={isAnalyzing || isSaving}>
               <Ionicons name="cloud-upload-outline" size={18} color={ACCENT} />
               <Text style={styles.browseText}>{file ? 'Change' : 'Select'}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* כפתור ניתוח - ראשי */}
           <TouchableOpacity
-            style={[styles.submitBtn, (!file || isAnalyzing) && { opacity: 0.6 }]}
+            style={[styles.submitBtn, (!file || isAnalyzing || isSaving) && { opacity: 0.6 }]}
             onPress={handleUpload}
-            disabled={!file || isAnalyzing}
+            disabled={!file || isAnalyzing || isSaving}
           >
             {isAnalyzing ? (
               <View style={{flexDirection: 'row', gap: 10}}>
@@ -196,9 +248,8 @@ export default function BloodTestUploadScreen() {
             )}
           </TouchableOpacity>
 
-          {/* 🔥 כפתור מעבר ידני - אם אין קובץ */}
           {!analysisResults && !isAnalyzing && (
-            <TouchableOpacity style={styles.manualBtn} onPress={handleManualSelect}>
+            <TouchableOpacity style={styles.manualBtn} onPress={handleManualSelect} disabled={isSaving}>
               <Text style={styles.manualBtnText}>No file? Select Illnesses Manually</Text>
               <Ionicons name="chevron-forward" size={16} color={ACCENT} />
             </TouchableOpacity>
@@ -223,11 +274,20 @@ export default function BloodTestUploadScreen() {
             </View>
           )}
 
-          {/* כפתור שמירה וסיום (מופיע רק אחרי אנליזה) */}
           {analysisResults && (
-            <TouchableOpacity style={styles.continueBtn} onPress={handleContinue}>
-                <Text style={styles.continueText}>Save & Finish</Text>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+            <TouchableOpacity 
+                style={[styles.continueBtn, isSaving && { opacity: 0.7 }]} 
+                onPress={handleContinue}
+                disabled={isSaving}
+            >
+                {isSaving ? (
+                     <ActivityIndicator color="#fff" />
+                ) : (
+                    <>
+                        <Text style={styles.continueText}>Save & Finish</Text>
+                        <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                    </>
+                )}
             </TouchableOpacity>
           )}
 
@@ -249,30 +309,19 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 12, color: '#555' },
   browseBtn: { flexDirection: 'row', gap: 5, backgroundColor: '#e0f2fe', padding: 10, borderRadius: 8 },
   browseText: { color: ACCENT, fontWeight: '700' },
-  
   submitBtn: { backgroundColor: ACCENT, padding: 15, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
   submitText: { color: '#fff', fontWeight: '700' },
-
-  // סגנון לכפתור הידני החדש
   manualBtn: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    gap: 5, 
-    padding: 12, 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: ACCENT,
-    backgroundColor: '#f0f9ff'
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
+    gap: 5, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: ACCENT, backgroundColor: '#f0f9ff'
   },
   manualBtnText: { color: ACCENT, fontWeight: '600' },
-
   resultsContainer: { marginTop: 20, marginBottom: 20 },
   divider: { height: 1, backgroundColor: '#eee', marginBottom: 15 },
   resultsTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
   diagnosisTag: { flexDirection: 'row', gap: 5, backgroundColor: '#fef2f2', padding: 8, borderRadius: 20, borderWidth: 1, borderColor: '#fecaca' },
   diagnosisText: { color: '#b91c1c', fontWeight: '600' },
-  continueBtn: { backgroundColor: '#10b981', flexDirection: 'row', justifyContent: 'center', padding: 15, borderRadius: 12, gap: 8, marginTop: 10 },
+  continueBtn: { backgroundColor: '#10b981', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 15, borderRadius: 12, gap: 8, marginTop: 10 },
   continueText: { color: '#fff', fontWeight: '700' },
 });

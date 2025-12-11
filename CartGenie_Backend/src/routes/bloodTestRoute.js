@@ -1,32 +1,75 @@
 import express from 'express';
 import multer from 'multer';
-import { analyzeBloodTestImage } from '../agents/bloodTestAgent.js'; // ה-Agent שיצרנו קודם
+import BloodTest from '../models/BloodTest.js'; // ייבוא המודל שיצרנו למעלה
+import { analyzeBloodTestImage } from '../agents/bloodTestAgent.js'; // וודא שהנתיב נכון לקובץ הניתוח שלך!
 
 const router = express.Router();
 
-// הגדרת Multer לשמירה בזיכרון (כדי שנוכל לשלוח ישר ל-Gemini)
+// הגדרת Multer לשמירת הקובץ בזיכרון (RAM) לצורך עיבוד מהיר ללא שמירה בדיסק
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// ה-Endpoint האמיתי
+/**
+ * POST /api/blood-test/analyze
+ * מקבל קובץ + שם משתמש -> מנתח -> שומר ב-DB -> מחזיר תוצאה
+ */
 router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
   try {
+    // 1. בדיקת קיום קובץ
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    console.log(`📡 Server: Received file ${req.file.originalname}, sending to Gemini...`);
+    // 2. קבלת שם המשתמש (מהקוד שהוספת ב-React Native)
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'Username is required' });
+    }
 
-    // שליחה ל-Agent (הקוד שתיקנו קודם עם ה-Retry)
-    const result = await analyzeBloodTestImage(req.file.buffer, req.file.mimetype);
+    console.log(`🧬 Processing blood test for user: ${username}`);
 
-    console.log('✅ Server: Analysis complete, sending results to app.');
-    res.json({ success: true, data: result });
+    // 3. ביצוע הניתוח (הפונקציה הקיימת שלך)
+    const analysisResult = await analyzeBloodTestImage(req.file.buffer, req.file.mimetype);
+
+    // 4. שמירה ב-MongoDB
+    // אנחנו שומרים גם אם לא נמצאו מחלות, כדי שיהיה תיעוד שהבדיקה בוצעה
+    const newRecord = new BloodTest({
+      username: username,
+      diagnosis: analysisResult.diagnosis,
+      rawText: analysisResult.rawText, 
+      fileName: req.file.originalname
+    });
+
+    await newRecord.save();
+    console.log(`✅ Saved diagnosis for ${username} to MongoDB`);
+
+    // 5. החזרת תשובה לקליינט
+    res.json({
+      success: true,
+      data: {
+        diagnosis: analysisResult.diagnosis,
+        recordId: newRecord._id // מחזירים מזהה למקרה הצורך
+      }
+    });
 
   } catch (error) {
-    console.error('❌ Server Error:', error.message);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Analysis/Save Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Internal Server Error' 
+    });
   }
+});
+
+// אופציונלי: נתיב לשליפת היסטוריה למשתמש
+router.get('/history/:username', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const history = await BloodTest.find({ username }).sort({ createdAt: -1 });
+        res.json({ success: true, data: history });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 export default router;
