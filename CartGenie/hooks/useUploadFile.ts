@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
+import { useState, useCallback } from 'react';
+import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
-interface FileData {
+export interface FileData {
   uri: string;
   name: string;
   size?: number;
@@ -12,56 +12,20 @@ interface FileData {
 
 export function useUploadFile() {
   const [file, setFile] = useState<FileData | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [uploading, setUploading] = useState(false);
 
-  // איפוס הפרוגרס כשמחליפים קובץ
-  useEffect(() => {
-    if (file) {
-      setProgress(100); // מציין שהקובץ נבחר בהצלחה
-      setUploading(false);
-    }
-  }, [file]);
-
-  const chooseSource = () => {
-    Alert.alert(
-      'Select Source',
-      'Choose how you want to add your blood test results',
-      [
-        {
-          text: 'Take Photo',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Choose from Library',
-          onPress: pickFromLibrary,
-        },
-        {
-          text: 'Pick Document',
-          onPress: pickDocument,
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
-  const takePhoto = async () => {
+  const takePhoto = useCallback(async () => {
     try {
-      // בקשת הרשאה למצלמה
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Camera permission is required to take photos');
+        Alert.alert('Permission needed', 'Camera permission is required');
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: true, // אפשר לחתוך את התמונה
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.7, // הורדת איכות קלה למניעת קבצים ענקיים
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -77,22 +41,20 @@ export function useUploadFile() {
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
-  };
+  }, []);
 
-  const pickFromLibrary = async () => {
+  const pickFromLibrary = useCallback(async () => {
     try {
-      // בקשת הרשאה לגלריה
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Photo library permission is required');
+        Alert.alert('Permission needed', 'Library permission is required');
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
-        allowsMultipleSelection: false,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -101,50 +63,59 @@ export function useUploadFile() {
           uri: asset.uri,
           name: asset.fileName || `image_${Date.now()}.jpg`,
           size: asset.fileSize,
-          mimeType: asset.type || 'image/jpeg',
+          mimeType: asset.mimeType || 'image/jpeg',
         });
       }
     } catch (error) {
       console.error('Error picking from library:', error);
-      Alert.alert('Error', 'Failed to pick image from library');
+      Alert.alert('Error', 'Failed to pick image');
     }
-  };
+  }, []);
 
-  const pickDocument = async () => {
+  const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['image/*', 'application/pdf'],
         copyToCacheDirectory: true,
       });
 
-      console.log('DocumentPicker result:', result);
-
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        
         setFile({
           uri: asset.uri,
           name: asset.name,
-          size: asset.size || undefined,
-          mimeType: asset.mimeType || undefined,
+          size: asset.size,
+          mimeType: asset.mimeType || 'application/pdf', // Fallback
         });
       }
     } catch (error) {
       console.error('Error picking document:', error);
       Alert.alert('Error', 'Failed to pick document');
     }
-  };
+  }, []);
 
-  const canSubmit = file !== null && !uploading;
+  const chooseSource = useCallback(() => {
+    Alert.alert(
+      'Select Source',
+      'Choose how you want to add your file',
+      [
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Library', onPress: pickFromLibrary },
+        { text: 'Pick Document', onPress: pickDocument },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [takePhoto, pickFromLibrary, pickDocument]);
+
+  // פונקציית איפוס למקרה שרוצים לנקות את הקובץ
+  const clearFile = useCallback(() => setFile(null), []);
 
   return {
     file,
-    progress,
-    uploading,
-    canSubmit,
-    chooseSource,
-    setFile,
-    setProgress,
-    setUploading,
+    chooseSource, // כפתור אחד לפתיחת תפריט
+    takePhoto,        // 👇 חשיפה לשימוש ישיר
+    pickFromLibrary,  // 👇 חשיפה לשימוש ישיר
+    pickDocument,     // 👇 חשיפה לשימוש ישיר
+    clearFile,
   };
 }

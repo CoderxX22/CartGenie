@@ -1,71 +1,46 @@
 import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
-import {
-  CameraView,
-  useCameraPermissions,
-  BarcodeScanningResult,
-} from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import { useAppColors } from '@/components/appThemeProvider';
+import { CameraPermissionView } from './camera/cameraPermissionView';
+import { CameraOverlay } from './camera/CameraOverlay';
 
 type Props = {
   onComplete: (barcode: string) => void;
 };
 
 export default function ScanProduct({ onComplete }: Props) {
+  const col = useAppColors();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-
-  // Hard guard against duplicate navigations
+  
+  // מונע סריקות כפולות בזמן המעבר מסך
   const scanLockRef = useRef(false);
 
+  // 1. בדיקת הרשאות
   if (!permission) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.infoText}>Checking camera permission…</Text>
-      </View>
-    );
+    return <CameraPermissionView status="loading" colors={col} />;
   }
-
   if (!permission.granted) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={32} color="#f97316" />
-        <Text style={styles.infoText}>
-          We need your permission to use the camera for barcode scanning.
-        </Text>
-        <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Ionicons name="camera" size={18} color="#fff" />
-          <Text style={styles.buttonText}>Grant permission</Text>
-        </TouchableOpacity>
-      </View>
+      <CameraPermissionView 
+        status="denied" 
+        onRequestPermission={requestPermission} 
+        colors={col} 
+      />
     );
   }
 
+  // 2. לוגיקת סריקה
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-    // If navigation already triggered once – ignore further events
     if (scanLockRef.current) return;
-
+    
     scanLockRef.current = true;
     setScanned(true);
-
-    const value = String(result.data);
-    onComplete(value);
+    onComplete(result.data);
   };
 
-  const handleRescan = () => {
-    // Allow scanning again
-    scanLockRef.current = false;
-    setScanned(false);
-  };
-
+  // 3. תצוגה
   return (
     <View style={styles.container}>
       <CameraView
@@ -75,31 +50,13 @@ export default function ScanProduct({ onComplete }: Props) {
           barcodeTypes: ['ean13', 'ean8', 'upc_e', 'upc_a', 'qr'],
         }}
       />
-
-      {/* Overlay with frame and hint */}
-      <View style={styles.overlay}>
-        <View style={styles.frame} />
-
-        <View style={styles.bottomPanel}>
-          <View style={styles.hintBox}>
-            <Text style={styles.hintTitle}>Point the barcode inside the frame</Text>
-            <Text style={styles.hintText}>Scanning will happen automatically</Text>
-          </View>
-
-          {scanned && (
-            <View style={styles.rescanBlock}>
-              <Text style={styles.infoText}>Barcode scanned, processing…</Text>
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton]}
-                onPress={handleRescan}
-              >
-                <Ionicons name="scan-outline" size={18} color="#0f172a" />
-                <Text style={styles.secondaryButtonText}>Scan again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </View>
+      
+      {!scanned && (
+        <CameraOverlay 
+          title="Point at a barcode" 
+          subtitle="Scanning happens automatically" 
+        />
+      )}
     </View>
   );
 }
@@ -107,95 +64,4 @@ export default function ScanProduct({ onComplete }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },
-
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  frame: {
-    width: '70%',
-    aspectRatio: 1,
-    borderRadius: 18,
-    borderWidth: 3,
-    borderColor: '#fff',
-    backgroundColor: 'transparent',
-  },
-  bottomPanel: {
-    width: '100%',
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  hintBox: {
-    backgroundColor: 'rgba(15,23,42,0.78)',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  hintTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  hintText: {
-    color: '#e5e7eb',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  rescanBlock: {
-    marginTop: 12,
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  center: {
-    flex: 1,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 12,
-  },
-  infoText: {
-    color: '#e5e7eb',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-
-  button: {
-    marginTop: 8,
-    backgroundColor: '#0096c7',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0369A1',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
-      },
-      android: { elevation: 4 },
-    }),
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    backgroundColor: '#f3f4f6',
-  },
-  secondaryButtonText: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontWeight: '700',
-  },
 });
