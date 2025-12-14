@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 
 export type UseScanProductOpts = {
-  onDenied?: () => void;              // camera permission denied
-  onError?: (err: unknown) => void;   // general error
+  onDenied?: () => void;            // called when camera permission is denied
+  onError?: (err: unknown) => void; // generic error handler
 };
 
 export function useScanProduct(opts: UseScanProductOpts = {}) {
@@ -16,17 +16,17 @@ export function useScanProduct(opts: UseScanProductOpts = {}) {
     try {
       setLoading(true);
 
-      // 1. Request permissions
+      // 1. Request camera permissions
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         onDenied?.();
         return;
       }
 
-      // 2. Launch camera
+      // 2. Launch camera for still image capture (barcode from photo)
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: 'images',
-        allowsEditing: false,              // для штрихкода лучше без crop
+        allowsEditing: false,          // better without crop for barcode
         quality: 1,
         exif: false,
         cameraType: ImagePicker.CameraType.back,

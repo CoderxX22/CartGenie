@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -22,8 +22,8 @@ type ProductItem = {
   id: string;
   name: string;
   description: string;
-  recommendedFor: string[]; // болезни, при которых полезно
-  avoidFor: string[];       // болезни, при которых нежелательно
+  recommendedFor: string[];
+  avoidFor: string[];
   tags: string[];
 };
 
@@ -61,7 +61,6 @@ const FACT_IMAGE_MAP = {
 } as const;
 
 // ---------- DATA: PRODUCTS ----------
-// Каждому продукту задаём, при каких болезнях он полезен или нежелателен.
 const PRODUCT_ITEMS: ProductItem[] = [
   {
     id: 'p1',
@@ -115,7 +114,10 @@ const PRODUCT_ITEMS: ProductItem[] = [
     id: 'p7',
     name: 'Banana',
     description: 'Rich in potassium, supports heart and blood pressure control.',
-    recommendedFor: ['High blood pressure (Hypertension)', 'Depression / Anxiety (affecting appetite)'],
+    recommendedFor: [
+      'High blood pressure (Hypertension)',
+      'Depression / Anxiety (affecting appetite)',
+    ],
     avoidFor: ['Diabetes Type 2'],
     tags: ['fruit', 'potassium'],
   },
@@ -190,22 +192,23 @@ const NEWS_ITEMS: NewsItem[] = [
 ];
 
 // ---------- MODES ----------
-const MODES: { id: Mode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: 'products', label: 'Products', icon: 'cart-outline' },
-  { id: 'facts', label: 'Health Facts', icon: 'bulb-outline' },
-  { id: 'news', label: 'News', icon: 'newspaper-outline' },
-];
+const MODES: { id: Mode; label: string; icon: keyof typeof Ionicons.glyphMap }[] =
+  [
+    { id: 'products', label: 'Products', icon: 'cart-outline' },
+    { id: 'facts', label: 'Health Facts', icon: 'bulb-outline' },
+    { id: 'news', label: 'News', icon: 'newspaper-outline' },
+  ];
 
 // ---------- SCREEN ----------
 export default function Discover() {
   const col = useAppColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
-  // 🩺 подключаем болезни вместо аллергий
   const { selected } = useIllnesses([]);
   const selectedIllnesses = React.useMemo(
     () => new Set(Array.from(selected)),
-    [selected]
+    [selected],
   );
 
   const [mode, setMode] = React.useState<Mode>('products');
@@ -216,7 +219,7 @@ export default function Discover() {
   const filteredProducts = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return PRODUCT_ITEMS.filter((item) =>
-      item.name.toLowerCase().includes(q)
+      item.name.toLowerCase().includes(q),
     );
   }, [query]);
 
@@ -225,7 +228,6 @@ export default function Discover() {
     return !hasConflict;
   };
 
-  // ---------- Render products ----------
   const renderProducts = () => (
     <>
       <View style={styles.searchRow}>
@@ -257,7 +259,9 @@ export default function Discover() {
                   ]}
                 >
                   <Text style={[styles.badgeText, { color: badgeColor }]}>
-                    {suitable ? 'Suitable for your health profile' : 'Not recommended'}
+                    {suitable
+                      ? 'Suitable for your health profile'
+                      : 'Not recommended'}
                   </Text>
                 </View>
               </View>
@@ -279,8 +283,14 @@ export default function Discover() {
 
         {filteredProducts.length === 0 && (
           <View style={styles.emptyBox}>
-            <Ionicons name="document-text-outline" size={24} color={col.subtitle} />
-            <Text style={styles.emptyText}>No products found. Try another search.</Text>
+            <Ionicons
+              name="document-text-outline"
+              size={24}
+              color={col.subtitle}
+            />
+            <Text style={styles.emptyText}>
+              No products found. Try another search.
+            </Text>
           </View>
         )}
       </View>
@@ -329,10 +339,23 @@ export default function Discover() {
     </View>
   );
 
-  // ---------- MAIN ----------
   return (
     <>
-      <Stack.Screen options={{ title: 'Discover' }} />
+      <Stack.Screen
+        options={{
+          title: 'Discover',
+          headerBackVisible: false,
+          gestureEnabled: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/homePage')}
+              style={{ paddingHorizontal: 12 }}
+            >
+              <Ionicons name="home-outline" size={22} color={col.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <View
         style={[
           styles.screen,
@@ -351,7 +374,8 @@ export default function Discover() {
           />
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>
-            Explore products, health facts, and nutrition news tailored to your conditions.
+            Explore products, health facts, and nutrition news tailored to your
+            conditions.
           </Text>
 
           <View style={styles.modeRow}>
@@ -369,7 +393,12 @@ export default function Discover() {
                     color={active ? '#0F172A' : col.subtitle}
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={[styles.modeText, active && styles.modeTextActive]}>
+                  <Text
+                    style={[
+                      styles.modeText,
+                      active && styles.modeTextActive,
+                    ]}
+                  >
                     {m.label}
                   </Text>
                 </TouchableOpacity>

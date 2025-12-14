@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,9 @@ export default function ScanProduct({ onComplete }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  // пока ещё не получили объект permission
+  // Hard guard against duplicate navigations
+  const scanLockRef = useRef(false);
+
   if (!permission) {
     return (
       <View style={styles.center}>
@@ -32,7 +34,6 @@ export default function ScanProduct({ onComplete }: Props) {
     );
   }
 
-  // нет доступа к камере
   if (!permission.granted) {
     return (
       <View style={styles.center}>
@@ -49,13 +50,20 @@ export default function ScanProduct({ onComplete }: Props) {
   }
 
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-    if (scanned) return; // защита от двойного срабатывания
+    // If navigation already triggered once – ignore further events
+    if (scanLockRef.current) return;
 
+    scanLockRef.current = true;
     setScanned(true);
-    const value = String(result.data); // это строка штрихкода
 
-    // вызываем родительский коллбек
+    const value = String(result.data);
     onComplete(value);
+  };
+
+  const handleRescan = () => {
+    // Allow scanning again
+    scanLockRef.current = false;
+    setScanned(false);
   };
 
   return (
@@ -64,26 +72,26 @@ export default function ScanProduct({ onComplete }: Props) {
         style={styles.camera}
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
         barcodeScannerSettings={{
-          // какие типы штрихкодов нас интересуют
           barcodeTypes: ['ean13', 'ean8', 'upc_e', 'upc_a', 'qr'],
         }}
       />
 
-      {/* Оверлей с рамкой и подсказкой */}
+      {/* Overlay with frame and hint */}
       <View style={styles.overlay}>
         <View style={styles.frame} />
+
         <View style={styles.bottomPanel}>
-          <Text style={styles.hintTitle}>Point the barcode inside the frame</Text>
-          <Text style={styles.hintText}>Scanning will happen automatically</Text>
+          <View style={styles.hintBox}>
+            <Text style={styles.hintTitle}>Point the barcode inside the frame</Text>
+            <Text style={styles.hintText}>Scanning will happen automatically</Text>
+          </View>
 
           {scanned && (
             <View style={styles.rescanBlock}>
-              <Text style={styles.infoText}>
-                Barcode scanned, processing…
-              </Text>
+              <Text style={styles.infoText}>Barcode scanned, processing…</Text>
               <TouchableOpacity
                 style={[styles.button, styles.secondaryButton]}
-                onPress={() => setScanned(false)}
+                onPress={handleRescan}
               >
                 <Ionicons name="scan-outline" size={18} color="#0f172a" />
                 <Text style={styles.secondaryButtonText}>Scan again</Text>
@@ -102,7 +110,7 @@ const styles = StyleSheet.create({
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
   },
@@ -117,6 +125,14 @@ const styles = StyleSheet.create({
   bottomPanel: {
     width: '100%',
     paddingHorizontal: 24,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  hintBox: {
+    backgroundColor: 'rgba(15,23,42,0.78)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     alignItems: 'center',
   },
   hintTitle: {
