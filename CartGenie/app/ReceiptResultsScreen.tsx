@@ -40,13 +40,36 @@ export default function ReceiptResultsScreen() {
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showRawText, setShowRawText] = useState(false);
+  
+  // 👇 סטייט חדש למניעת שמירה כפולה וכדי לדעת אם להציג כפתור "שמור"
+  const [isSaved, setIsSaved] = useState(false);
+  const [productCount, setProductCount] = useState(0);
 
-  // 👇 פונקציית עזר לשמירת הקבלה בהיסטוריה
+  // פונקציית שמירה ידנית
+  const handleSavePress = async () => {
+    if (isSaved) return;
+
+    try {
+        const username = await AsyncStorage.getItem('loggedInUser');
+        if (!username || username === 'guest') {
+            Alert.alert("Notice", "You must be logged in to save history.");
+            return;
+        }
+
+        if (!aiResult) return;
+
+        await saveReceiptToHistory(username, productCount, aiResult);
+        setIsSaved(true);
+        Alert.alert("Success", "Receipt saved to history!");
+    } catch (error) {
+        Alert.alert("Error", "Failed to save receipt.");
+    }
+  };
+
   const saveReceiptToHistory = async (username: string, productsCount: number, aiData: AiResult) => {
     try {
         console.log('💾 Saving receipt to history...');
         
-        // חישוב סיכום הבריאות
         const safeCount = aiData.analyzedItems.filter(i => i.recommendation === 'SAFE').length;
         const cautionCount = aiData.analyzedItems.filter(i => i.recommendation === 'CAUTION').length;
         const avoidCount = aiData.analyzedItems.filter(i => i.recommendation === 'AVOID').length;
@@ -56,9 +79,8 @@ export default function ReceiptResultsScreen() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 username,
-                storeName: 'Scanned Receipt', // אפשר לנסות לחלץ מה-rawText בעתיד
-                totalPrice: 0, // כרגע ה-OCR שלנו לא מחלץ מחיר כולל, אז נשים 0
-                currency: '₪',
+                storeName: 'Scanned Receipt', 
+                totalPrice: 0, 
                 itemCount: productsCount,
                 healthSummary: {
                     safe: safeCount,
@@ -70,6 +92,7 @@ export default function ReceiptResultsScreen() {
         console.log('✅ Receipt saved successfully');
     } catch (error) {
         console.error('❌ Failed to save receipt:', error);
+        throw error;
     }
   };
 
@@ -112,13 +135,14 @@ export default function ReceiptResultsScreen() {
             .filter((p: any) => !p.notFound)
             .map((p: any) => p.name);
 
+        setProductCount(productNames.length);
+
         if (productNames.length === 0) {
             setErrorMsg('None of the scanned items were found in our database.');
             setLoadingStep('IDLE');
             return;
         }
 
-        // 3. שליפת המשתמש והפעלת ה-AI
         setLoadingStep('ANALYZING_HEALTH');
         
         const savedUsername = await AsyncStorage.getItem('loggedInUser');
@@ -139,12 +163,7 @@ export default function ReceiptResultsScreen() {
 
         if (aiJson.success && aiJson.data) {
            setAiResult(aiJson.data);
-           
-           // 👇 כאן אנחנו קוראים לפונקציית השמירה!
-           if (currentUser !== 'guest') {
-               saveReceiptToHistory(currentUser, productNames.length, aiJson.data);
-           }
-
+           // 🛑 ביטלתי את השמירה האוטומטית שהייתה כאן
         } else {
            throw new Error(aiJson.message || 'AI Analysis failed');
         }
@@ -231,6 +250,18 @@ export default function ReceiptResultsScreen() {
             <Text style={styles.scoreSubtitle}>Based on your health profile</Text>
           </View>
 
+          {/* 👇 כפתור שמירה ידני חדש */}
+          <TouchableOpacity 
+            style={[styles.saveBtn, isSaved && styles.saveBtnDisabled]} 
+            onPress={handleSavePress}
+            disabled={isSaved}
+          >
+             <Ionicons name={isSaved ? "checkmark" : "save-outline"} size={20} color="#fff" />
+             <Text style={styles.saveBtnText}>
+                {isSaved ? "Saved to History" : "Save to History"}
+             </Text>
+          </TouchableOpacity>
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Analyzed Items ({analyzedItems.length})</Text>
             
@@ -294,11 +325,27 @@ const styles = StyleSheet.create({
   subLoadingText: { marginTop: 8, fontSize: 14, color: '#64748B', textAlign: 'center' },
   errorText: { fontSize: 18, fontWeight: '700', color: '#334155', marginTop: 16, textAlign: 'center', marginBottom: 20 },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  
   scoreCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 24, shadowOpacity: 0.05, elevation: 3 },
   scoreTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 16 },
   scoreCircle: { width: 100, height: 100, borderRadius: 50, borderWidth: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   scoreNumber: { fontSize: 36, fontWeight: '800' },
   scoreSubtitle: { fontSize: 13, color: '#64748B' },
+
+  // 👇 סגנון לכפתור השמירה החדש
+  saveBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#0F172A', 
+    padding: 12, 
+    borderRadius: 12, 
+    marginBottom: 24,
+    gap: 8 
+  },
+  saveBtnDisabled: { backgroundColor: '#10B981', opacity: 0.9 },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
   section: { marginBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
   itemsList: { gap: 12 },

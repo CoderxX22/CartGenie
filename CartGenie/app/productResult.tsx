@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,60 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_URL } from '../src/config/api';
 import { consultAiAgent, AIResponse } from '../services/AiConsultService';
-import { useAppColors, AppColors } from '@/components/appThemeProvider';
+// Assuming useAppColors returns the color palette, but for this specific file structure 
+// we will stick to the static styles defined at the bottom to match your StyleSheet.create
+// If you need dynamic theming, the bottom styles object needs to be a function.
+import { useAppColors } from '@/components/appThemeProvider'; 
 
 const ACCENT = '#0096c7';
+
+type ProductNutrients = {
+  calories?: number;
+  sugar?: number;
+  sodium?: number;
+};
+
+type Product = {
+  name?: string;
+  brand?: string;
+  barcode?: string;
+  notFound?: boolean;
+  nutrients?: ProductNutrients;
+};
+
+type LoadingStep = 'IDLE' | 'CHECKING_DB' | 'ANALYZING_HEALTH';
+
+// 👇 Helper function to save history to server
+const saveToHistory = async (productData: any, aiData: AIResponse) => {
+  try {
+    const username = await AsyncStorage.getItem('loggedInUser');
+    if (!username) return; 
+
+    await fetch(`${API_URL}/api/history/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        productName: productData.name,
+        barcode: productData.barcode,
+        brand: productData.brand,
+        aiRecommendation: aiData.recommendation,
+        aiReason: aiData.reason
+      })
+    });
+    console.log('✅ History saved to DB successfully');
+  } catch (err) {
+    console.error('❌ Failed to save history:', err);
+  }
+};
 
 export default function ProductResultScreen() {
   const { barcode } = useLocalSearchParams<{ barcode: string }>();
   const router = useRouter();
-  const col = useAppColors();
-  const styles = useMemo(() => makeStyles(col), [col]);
+  const col = useAppColors(); 
+  // Note: 'styles' is defined statically at the bottom. 
+  // If you need dynamic styles based on 'col', you'd need to convert the bottom StyleSheet to a function.
+  // For now, we use the static 'styles' object to resolve the error.
 
   const [product, setProduct] = useState<Product | null>(null);
   const [aiResult, setAiResult] = useState<AIResponse | null>(null);
@@ -33,15 +78,14 @@ export default function ProductResultScreen() {
     const runAnalysisFlow = async () => {
       if (!barcode) return;
 
-      // 1️⃣ איפוס נתונים קריטי! מנקה תוצאות קודמות לפני שמתחילים
+      // 1️⃣ Reset Data
       setProduct(null);
       setAiResult(null);
       setErrorMsg(null);
       setLoadingStep('CHECKING_DB');
 
       try {
-        // --- שלב 1: בדיקת המוצר ב-DB ---
-        
+        // --- Step 1: Check product in DB ---
         const res = await fetch(`${API_URL}/api/products/batch-details`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -50,7 +94,6 @@ export default function ProductResultScreen() {
 
         const data = await res.json();
         
-        // בדיקת תקינות המערך שהוחזר מהשרת
         if (!data.success || !data.data || data.data.length === 0) {
           setErrorMsg('Product not found in database');
           setLoadingStep('IDLE');
@@ -58,8 +101,7 @@ export default function ProductResultScreen() {
         }
 
         const foundProduct = data.data[0];
-
-        console.log('API Response for product:', foundProduct); // לוג לדיבאג
+        console.log('API Response for product:', foundProduct); 
 
         if (!foundProduct || foundProduct.notFound || !foundProduct.name) {
           setErrorMsg('Item not in database. AI analysis skipped.');
@@ -81,7 +123,10 @@ export default function ProductResultScreen() {
 
         const analysis = await consultAiAgent(foundProduct, currentUser);
 
-        setAiResult(analysis);
+        setAiResult(analysis); // Ensure state is updated
+
+        // 👇 Save history in background
+        saveToHistory(foundProduct, analysis);
 
       } catch (error) {
         console.error('Error in flow:', error);
@@ -99,9 +144,8 @@ export default function ProductResultScreen() {
     return (
       <>
         <Stack.Screen options={{ title: 'AI Agent' }} />
-        <View style={styles.screen}>
-          <View style={styles.centerCard}>
-            <ActivityIndicator size="large" color={col.accent ?? ACCENT} />
+        <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={ACCENT} />
             <Text style={styles.loadingText}>
               {loadingStep === 'CHECKING_DB'
                 ? 'Identifying product...'
@@ -112,24 +156,21 @@ export default function ProductResultScreen() {
                 Checking against your medical profile...
               </Text>
             )}
-          </View>
         </View>
       </>
     );
   }
 
-  // --- תצוגת שגיאה (מוצר לא ב-DB או שגיאה אחרת) ---
-  // שים לב: אנחנו מציגים שגיאה רק אם יש הודעת שגיאה או אם אין מוצר (למרות שהטעינה הסתיימה)
+  // --- Error View ---
   if (errorMsg || !product) {
     return (
       <>
         <Stack.Screen options={{ title: 'Unknown Product' }} />
-        <View style={styles.screen}>
-          <View style={styles.centerCard}>
+        <View style={styles.centerContainer}>
             <Ionicons
               name="help-circle-outline"
               size={64}
-              color={col.subtitle}
+              color="#CBD5E1"
             />
             <Text style={styles.errorText}>
               {errorMsg || 'Item not in database'}
@@ -146,7 +187,6 @@ export default function ProductResultScreen() {
             >
               <Text style={styles.btnText}>Scan Again</Text>
             </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.footer}>
@@ -162,7 +202,7 @@ export default function ProductResultScreen() {
     );
   }
 
-  // --- לוגיקת הצבעים (רק אם יש תוצאות AI) ---
+  // --- Color Logic ---
   let statusColor = '#64748B'; 
   let statusIcon: any = 'help-circle';
   let statusText = 'Unknown';
@@ -200,7 +240,6 @@ export default function ProductResultScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.card}>
           {/* Product card */}
           <View style={styles.miniProductCard}>
             <View>
@@ -211,7 +250,7 @@ export default function ProductResultScreen() {
               <Ionicons
                 name="barcode-outline"
                 size={14}
-                color={col.subtitle}
+                color="#64748B"
               />
               <Text style={styles.badgeText}>{product.barcode}</Text>
             </View>
@@ -232,23 +271,25 @@ export default function ProductResultScreen() {
                   <Ionicons name="sparkles" size={16} color={ACCENT} />
                   <Text style={styles.aiLabel}>AI Health Insight</Text>
                 </View>
-                <Text style={styles.aiReasonText}>{aiResult.reason}</Text>
+                
+                <Text style={styles.aiReasonText}>
+                    {aiResult.reason}
+                </Text>
 
-                    {/* הצגת אלטרנטיבות אם יש (במקרה של AVOID/CAUTION) */}
-                    {aiResult.alternatives && aiResult.alternatives.length > 0 && (
-                        <View style={styles.altContainer}>
-                            <Text style={styles.altTitle}>Better Alternatives:</Text>
-                            {aiResult.alternatives.map((alt: any, index: number) => (
-                                <View key={index} style={styles.altItem}>
-                                    <Ionicons name="leaf-outline" size={14} color="#10B981" />
-                                    <Text style={styles.altText}>
-                                        <Text style={{fontWeight: '700'}}>{alt.name}</Text>: {alt.reason}
-                                    </Text>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-                </View>
+                {aiResult.alternatives && aiResult.alternatives.length > 0 && (
+                    <View style={styles.altContainer}>
+                        <Text style={styles.altTitle}>Better Alternatives:</Text>
+                        {aiResult.alternatives.map((alt: any, index: number) => (
+                            <View key={index} style={styles.altItem}>
+                                <Ionicons name="leaf-outline" size={14} color="#10B981" />
+                                <Text style={styles.altText}>
+                                    <Text style={{fontWeight: '700'}}>{alt.name}</Text>: {alt.reason}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+              </View>
             </View>
           )}
 
@@ -269,13 +310,15 @@ export default function ProductResultScreen() {
               {product.nutrients?.sodium ?? '-'}mg
             </Text>
           </View>
-        </View>
+
       </ScrollView>
+      
+      {/* Footer */}
       <View style={styles.footer}>
           <TouchableOpacity style={styles.doneBtn} onPress={() => router.push('/(tabs)/homePage')}>
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
-        </View>
+      </View>
     </>
   );
 }
@@ -283,7 +326,7 @@ export default function ProductResultScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 100, 
     backgroundColor: '#F8FAFC',
     minHeight: '100%',
   },
@@ -315,151 +358,42 @@ const styles = StyleSheet.create({
   barcodeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9', padding: 6, borderRadius: 6 },
   badgeText: { fontSize: 12, color: '#64748B' },
 
-    aiCard: {
-      backgroundColor: c.card,
-      borderRadius: 16,
-      overflow: 'hidden',
-      borderWidth: 2,
-      marginBottom: 24,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 6 },
-        },
-        android: { elevation: 4 },
-      }),
-    },
-    statusHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      padding: 16,
-    },
-    statusTitle: {
-      color: '#fff',
-      fontSize: 20,
-      fontWeight: '800',
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    aiBody: {
-      padding: 20,
-    },
-    aiLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginBottom: 10,
-    },
-    aiLabel: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: ACCENT,
-      textTransform: 'uppercase',
-    },
-    aiReasonText: {
-      fontSize: 16,
-      lineHeight: 24,
-      color: c.text,
-    },
+  aiCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    marginBottom: 24,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 4
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+  },
+  statusTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  aiBody: { padding: 20 },
+  aiLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  aiLabel: { fontSize: 14, fontWeight: '700', color: ACCENT, textTransform: 'uppercase' },
+  aiReasonText: { fontSize: 16, lineHeight: 24, color: '#334155' },
 
-    altContainer: {
-      marginTop: 16,
-      backgroundColor: '#F0FDFA',
-      padding: 12,
-      borderRadius: 8,
-    },
-    altTitle: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: '#0F766E',
-      marginBottom: 8,
-    },
-    altItem: {
-      flexDirection: 'row',
-      gap: 6,
-      marginBottom: 4,
-    },
-    altText: {
-      fontSize: 13,
-      color: '#134E4A',
-      flex: 1,
-    },
+  altContainer: { marginTop: 16, backgroundColor: '#F0FDFA', padding: 12, borderRadius: 8 },
+  altTitle: { fontSize: 14, fontWeight: '700', color: '#0F766E', marginBottom: 8 },
+  altItem: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  altText: { fontSize: 13, color: '#134E4A', flex: 1 },
 
-    actionBtn: {
-      backgroundColor: '#0F172A',
-      padding: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-      marginBottom: 30,
-    },
-    actionBtnText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: '700',
-    },
+  actionBtn: { backgroundColor: '#0F172A', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 30 },
+  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btn: { backgroundColor: ACCENT, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
+  btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 
-    btn: {
-      backgroundColor: c.accent ?? ACCENT,
-      paddingVertical: 12,
-      paddingHorizontal: 24,
-      borderRadius: 12,
-    },
-    btnText: {
-      color: '#fff',
-      fontWeight: '600',
-      fontSize: 16,
-    },
+  nutritionContainer: { alignItems: 'center', opacity: 0.7 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#94A3B8', marginBottom: 4 },
+  factsText: { fontSize: 14, color: '#64748B' },
 
-    nutritionContainer: {
-      alignItems: 'center',
-      opacity: 0.8,
-    },
-    sectionTitle: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: c.subtitle,
-      marginBottom: 4,
-    },
-    factsText: {
-      fontSize: 14,
-      color: c.text,
-      textAlign: 'center',
-    },
-
-    // Theme-aware footer, similar style to Navbar/footer on other screens
-    footer: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: c.card,
-      paddingHorizontal: 20,
-      paddingVertical: Platform.select({ ios: 20, android: 16 }),
-      borderTopWidth: 1,
-      borderTopColor: c.inputBorder,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#0F172A',
-          shadowOpacity: 0.06,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: -6 },
-        },
-        android: { elevation: 10 },
-      }),
-    },
-    doneBtn: {
-      backgroundColor: c.accent ?? ACCENT,
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-    },
-    doneBtnText: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: 16,
-    },
-  });
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
+  doneBtn: { backgroundColor: ACCENT, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+});
