@@ -7,10 +7,12 @@ import cors from 'cors';
 import authRouter from './src/routes/auth.js'; 
 import userDataRouter from './src/routes/userDataRoutes.js'; 
 import productsRouter from './src/routes/productRoute.js';
-import bloodTestRouter from './src/routes/bloodTestRoute.js'; // ✅ תוקן השם
+import bloodTestRouter from './src/routes/bloodTestRoute.js';
 import ocrRouter from './src/routes/ocrRoute.js';
-
 import aiRoute from './src/routes/aiRoute.js';
+
+// 👇 הייבוא החדש (History)
+import historyRouter from './src/routes/historyRoute.js'; 
 
 const app = express();
 
@@ -23,7 +25,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// בדיקת שפיות - לוודא שהשרת חי
+// בדיקת שפיות
 app.get('/health', (req, res) => res.json({ ok: true, message: "Server is running" }));
 
 // 2. חיבור הראוטרים לנתיבים
@@ -32,9 +34,10 @@ app.use('/api/products', productsRouter);
 app.use('/api/userdata', userDataRouter);
 app.use('/api/ocr', ocrRouter);
 app.use('/api/ai', aiRoute);
+app.use('/api/blood-test', bloodTestRouter);
 
-// ✅ זה הנתיב החשוב! הוא מפנה את כל הבקשות שמגיעות ל-/api/blood-test לקובץ הראוטר שיצרנו
-app.use('/api/blood-test', bloodTestRouter); 
+// 👇 החיבור החדש: כל מה שקשור להיסטוריה ילך לכאן
+app.use('/api/history', historyRouter); 
 
 const { MONGO_URI, PORT = 4000 } = process.env;
 

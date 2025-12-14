@@ -17,6 +17,30 @@ import { consultAiAgent, AIResponse } from '../services/AiConsultService';
 
 const ACCENT = '#0096c7';
 
+// 👇 פונקציית עזר לשמירת ההיסטוריה בשרת
+const saveToHistory = async (productData: any, aiData: AIResponse) => {
+  try {
+    const username = await AsyncStorage.getItem('loggedInUser');
+    if (!username) return; // לא שומרים היסטוריה לאורחים
+
+    await fetch(`${API_URL}/api/history/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        productName: productData.name,
+        barcode: productData.barcode,
+        brand: productData.brand,
+        aiRecommendation: aiData.recommendation,
+        aiReason: aiData.reason
+      })
+    });
+    console.log('✅ History saved to DB successfully');
+  } catch (err) {
+    console.error('❌ Failed to save history:', err);
+  }
+};
+
 export default function ProductResultScreen() {
   const { barcode } = useLocalSearchParams<{ barcode: string }>();
   const router = useRouter();
@@ -32,7 +56,7 @@ export default function ProductResultScreen() {
     const runAnalysisFlow = async () => {
       if (!barcode) return;
 
-      // 1️⃣ איפוס נתונים קריטי! מנקה תוצאות קודמות לפני שמתחילים
+      // 1️⃣ איפוס נתונים קריטי
       setProduct(null);
       setAiResult(null);
       setErrorMsg(null);
@@ -40,7 +64,6 @@ export default function ProductResultScreen() {
 
       try {
         // --- שלב 1: בדיקת המוצר ב-DB ---
-        
         const res = await fetch(`${API_URL}/api/products/batch-details`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -49,7 +72,6 @@ export default function ProductResultScreen() {
 
         const data = await res.json();
         
-        // בדיקת תקינות המערך שהוחזר מהשרת
         if (!data.success || !data.data || data.data.length === 0) {
            setErrorMsg('Product not found in database');
            setLoadingStep('IDLE');
@@ -57,17 +79,14 @@ export default function ProductResultScreen() {
         }
 
         const foundProduct = data.data[0];
+        console.log('API Response for product:', foundProduct); 
 
-        console.log('API Response for product:', foundProduct); // לוג לדיבאג
-
-        // 2️⃣ בדיקה קפדנית: אם אין מוצר, או שהוא מסומן כ-notFound, או שאין לו שם - עוצרים.
         if (!foundProduct || foundProduct.notFound || !foundProduct.name) {
             setErrorMsg('Item not in database. AI analysis skipped.');
             setLoadingStep('IDLE');
             return;
         }
 
-        // המוצר נמצא ותקין - שומרים אותו ב-State
         setProduct(foundProduct);
 
         // --- שלב 2: זיהוי המשתמש והפעלת סוכן ה-AI ---
@@ -78,10 +97,12 @@ export default function ProductResultScreen() {
 
         console.log(`👤 Sending "${foundProduct.name}" to AI for user: ${currentUser}`);
 
-        // שליחה ל-AI (מוצר בודד)
         const analysis = await consultAiAgent(foundProduct, currentUser);
         
         setAiResult(analysis);
+
+        // 👇 כאן אנחנו שומרים את ההיסטוריה לשרת ברקע
+        saveToHistory(foundProduct, analysis);
 
       } catch (error) {
         console.error('Error in flow:', error);
@@ -112,8 +133,7 @@ export default function ProductResultScreen() {
     );
   }
 
-  // --- תצוגת שגיאה (מוצר לא ב-DB או שגיאה אחרת) ---
-  // שים לב: אנחנו מציגים שגיאה רק אם יש הודעת שגיאה או אם אין מוצר (למרות שהטעינה הסתיימה)
+  // --- תצוגת שגיאה ---
   if (errorMsg || !product) {
     return (
       <>
@@ -139,7 +159,7 @@ export default function ProductResultScreen() {
     );
   }
 
-  // --- לוגיקת הצבעים (רק אם יש תוצאות AI) ---
+  // --- לוגיקת הצבעים ---
   let statusColor = '#64748B'; 
   let statusIcon: any = 'help-circle';
   let statusText = 'Unknown';
@@ -199,7 +219,6 @@ export default function ProductResultScreen() {
                         {aiResult.reason}
                     </Text>
 
-                    {/* הצגת אלטרנטיבות אם יש (במקרה של AVOID/CAUTION) */}
                     {aiResult.alternatives && aiResult.alternatives.length > 0 && (
                         <View style={styles.altContainer}>
                             <Text style={styles.altTitle}>Better Alternatives:</Text>
@@ -230,11 +249,13 @@ export default function ProductResultScreen() {
         </View>
 
       </ScrollView>
+      
+      {/* Footer */}
       <View style={styles.footer}>
           <TouchableOpacity style={styles.doneBtn} onPress={() => router.push('/(tabs)/homePage')}>
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
-        </View>
+      </View>
     </>
   );
 }
@@ -242,7 +263,7 @@ export default function ProductResultScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 100, // הוספתי ריפוד למטה כדי שהכפתור לא יסתיר את התוכן
     backgroundColor: '#F8FAFC',
     minHeight: '100%',
   },

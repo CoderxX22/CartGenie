@@ -16,7 +16,6 @@ import { API_URL } from '../src/config/api';
 
 const ACCENT = '#0096c7';
 
-// מבנה התשובה מהסוכן
 interface AnalyzedItem {
   productName: string;
   allowed: boolean;
@@ -36,21 +35,49 @@ export default function ReceiptResultsScreen() {
   const rawText = params.rawText as string;
   const extractedItemsString = params.extractedItems as string; 
 
-  // סטייטים לניהול התהליך הדו-שלבי
-  // 1. FETCHING_NAMES: המרת ברקודים לשמות מול ה-DB
-  // 2. ANALYZING_HEALTH: שליחת השמות ל-AI
   const [loadingStep, setLoadingStep] = useState<'IDLE' | 'FETCHING_NAMES' | 'ANALYZING_HEALTH'>('FETCHING_NAMES');
   
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showRawText, setShowRawText] = useState(false);
 
+  // 👇 פונקציית עזר לשמירת הקבלה בהיסטוריה
+  const saveReceiptToHistory = async (username: string, productsCount: number, aiData: AiResult) => {
+    try {
+        console.log('💾 Saving receipt to history...');
+        
+        // חישוב סיכום הבריאות
+        const safeCount = aiData.analyzedItems.filter(i => i.recommendation === 'SAFE').length;
+        const cautionCount = aiData.analyzedItems.filter(i => i.recommendation === 'CAUTION').length;
+        const avoidCount = aiData.analyzedItems.filter(i => i.recommendation === 'AVOID').length;
+
+        await fetch(`${API_URL}/api/history/receipts/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username,
+                storeName: 'Scanned Receipt', // אפשר לנסות לחלץ מה-rawText בעתיד
+                totalPrice: 0, // כרגע ה-OCR שלנו לא מחלץ מחיר כולל, אז נשים 0
+                currency: '₪',
+                itemCount: productsCount,
+                healthSummary: {
+                    safe: safeCount,
+                    caution: cautionCount,
+                    avoid: avoidCount
+                }
+            })
+        });
+        console.log('✅ Receipt saved successfully');
+    } catch (error) {
+        console.error('❌ Failed to save receipt:', error);
+    }
+  };
+
   useEffect(() => {
     const runSmartAnalysis = async () => {
       try {
         setLoadingStep('FETCHING_NAMES');
 
-        // 1. פענוח רשימת הברקודים מה-Params
         let barcodes: string[] = [];
         try {
           barcodes = extractedItemsString ? JSON.parse(extractedItemsString) : [];
@@ -67,7 +94,6 @@ export default function ReceiptResultsScreen() {
             return;
         }
 
-        // 2. שליפת שמות המוצרים ממסד הנתונים (DB Lookup)
         console.log(`🔍 Resolving ${barcodes.length} barcodes against DB...`);
         
         const dbRes = await fetch(`${API_URL}/api/products/batch-details`, {
@@ -82,10 +108,8 @@ export default function ReceiptResultsScreen() {
             throw new Error('Failed to resolve product names from DB');
         }
 
-        // חילוץ השמות בלבד (רק מוצרים שנמצאו ב-DB)
-        // אם תרצה לשלוח גם את המותג, אפשר לשרשר: `${p.name} ${p.brand}`
         const productNames: string[] = dbData.data
-            .filter((p: any) => !p.notFound) // מסננים מוצרים לא ידועים
+            .filter((p: any) => !p.notFound)
             .map((p: any) => p.name);
 
         if (productNames.length === 0) {
@@ -94,9 +118,7 @@ export default function ReceiptResultsScreen() {
             return;
         }
 
-        console.log(`✅ Identified ${productNames.length} products. Names:`, productNames);
-
-        // 3. שליפת המשתמש והפעלת ה-AI עם השמות הנקיים
+        // 3. שליפת המשתמש והפעלת ה-AI
         setLoadingStep('ANALYZING_HEALTH');
         
         const savedUsername = await AsyncStorage.getItem('loggedInUser');
@@ -104,13 +126,12 @@ export default function ReceiptResultsScreen() {
 
         console.log(`🤖 Sending names to AI for user: ${currentUser}`);
 
-        // שליחה ל-Endpoint של העגלה עם *השמות* בלבד
         const aiRes = await fetch(`${API_URL}/api/ai/consult-cart`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: currentUser,
-            products: productNames // שולחים את השמות, לא את הברקודים!
+            products: productNames
           })
         });
 
@@ -118,6 +139,12 @@ export default function ReceiptResultsScreen() {
 
         if (aiJson.success && aiJson.data) {
            setAiResult(aiJson.data);
+           
+           // 👇 כאן אנחנו קוראים לפונקציית השמירה!
+           if (currentUser !== 'guest') {
+               saveReceiptToHistory(currentUser, productNames.length, aiJson.data);
+           }
+
         } else {
            throw new Error(aiJson.message || 'AI Analysis failed');
         }
@@ -149,20 +176,17 @@ export default function ReceiptResultsScreen() {
     }
   };
 
-  // --- תצוגת טעינה דו-שלבית ---
   if (loadingStep !== 'IDLE') {
     return (
       <>
         <Stack.Screen options={{ title: 'Processing' }} />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={ACCENT} />
-          
           <Text style={styles.loadingText}>
             {loadingStep === 'FETCHING_NAMES' 
                 ? 'Identifying Products...' 
                 : 'AI Analyzing Health Impact...'}
           </Text>
-          
           <Text style={styles.subLoadingText}>
             {loadingStep === 'FETCHING_NAMES'
                 ? 'Converting barcodes to product names'
@@ -173,7 +197,6 @@ export default function ReceiptResultsScreen() {
     );
   }
 
-  // --- תצוגת שגיאה ---
   if (errorMsg || !aiResult) {
     return (
       <>
@@ -198,7 +221,6 @@ export default function ReceiptResultsScreen() {
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           
-          {/* כרטיס ציון בריאותי */}
           <View style={styles.scoreCard}>
             <Text style={styles.scoreTitle}>Cart Health Score</Text>
             <View style={[styles.scoreCircle, { borderColor: getScoreColor(healthMatchScore) + '30' }]}>
@@ -209,7 +231,6 @@ export default function ReceiptResultsScreen() {
             <Text style={styles.scoreSubtitle}>Based on your health profile</Text>
           </View>
 
-          {/* רשימת המוצרים */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Analyzed Items ({analyzedItems.length})</Text>
             
@@ -240,7 +261,6 @@ export default function ReceiptResultsScreen() {
             </View>
           </View>
 
-          {/* דיבאג OCR (אופציונלי) */}
           {rawText && (
             <View style={styles.section}>
                 <TouchableOpacity style={styles.accordionHeader} onPress={() => setShowRawText(!showRawText)}>
@@ -270,19 +290,15 @@ export default function ReceiptResultsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  
   loadingText: { marginTop: 16, fontSize: 18, fontWeight: '600', color: '#0F172A' },
   subLoadingText: { marginTop: 8, fontSize: 14, color: '#64748B', textAlign: 'center' },
   errorText: { fontSize: 18, fontWeight: '700', color: '#334155', marginTop: 16, textAlign: 'center', marginBottom: 20 },
-
   scrollContent: { padding: 20, paddingBottom: 100 },
-  
   scoreCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 24, shadowOpacity: 0.05, elevation: 3 },
   scoreTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 16 },
   scoreCircle: { width: 100, height: 100, borderRadius: 50, borderWidth: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   scoreNumber: { fontSize: 36, fontWeight: '800' },
   scoreSubtitle: { fontSize: 13, color: '#64748B' },
-
   section: { marginBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
   itemsList: { gap: 12 },
@@ -293,15 +309,12 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, backgroundColor: '#fff' },
   badgeText: { fontSize: 11, fontWeight: '700' },
   reasonText: { fontSize: 14, color: '#475569', lineHeight: 20 },
-
   retryBtn: { marginTop: 20, padding: 12, backgroundColor: '#E2E8F0', borderRadius: 8 },
   retryBtnText: { fontWeight: '600', color: '#0F172A' },
-
   accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   debugTitle: { fontSize: 14, fontWeight: '600', color: '#64748B' },
   rawTextContainer: { marginTop: 5, backgroundColor: '#E2E8F0', padding: 10, borderRadius: 8 },
   rawText: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11, color: '#475569' },
-
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
   doneBtn: { backgroundColor: ACCENT, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },

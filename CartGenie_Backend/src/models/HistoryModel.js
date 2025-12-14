@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const HistorySchema = new mongoose.Schema({
-  username: { type: String, required: true, index: true }, // אינדקס לשליפה מהירה
+  username: { type: String, required: true, index: true },
   productName: { type: String, required: true },
   barcode: { type: String },
   brand: { type: String },
@@ -10,4 +10,5 @@ const HistorySchema = new mongoose.Schema({
   scannedAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('ScanHistory', HistorySchema);
+// 👇 זו השורה הקריטית - חייבים להשתמש ב-export default
+export default mongoose.model('ScanHistory', HistorySchema);
