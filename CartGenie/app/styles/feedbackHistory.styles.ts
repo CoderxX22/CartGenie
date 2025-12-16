@@ -7,13 +7,13 @@ export const createFeedbackHistoryStyles = (c: AppColors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: c.background, // צבע רקע דינמי
+      backgroundColor: c.background, // Theme-driven background (supports dark mode)
     },
-    
-    // --- Tabs ---
+
+    // Tabs container
     tabContainer: {
       flexDirection: 'row',
-      backgroundColor: c.card, // שינוי ל-c.card לתמיכה ב-Dark Mode
+      backgroundColor: c.card, // Theme-driven surface color
       padding: 6,
       marginHorizontal: 16,
       marginTop: 10,
@@ -21,34 +21,43 @@ export const createFeedbackHistoryStyles = (c: AppColors) => {
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.inputBorder,
-      // Shadow
       ...Platform.select({
-        ios: { shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } },
+        ios: {
+          shadowColor: '#000',
+          shadowOpacity: 0.03,
+          shadowRadius: 3,
+          shadowOffset: { width: 0, height: 2 },
+        },
         android: { elevation: 1 },
       }),
     },
+
     tabBtn: {
       flex: 1,
       paddingVertical: 10,
       alignItems: 'center',
       borderRadius: 8,
     },
+
     activeTabBtn: {
       backgroundColor: ACCENT,
     },
+
     tabText: {
       fontSize: 14,
       fontWeight: '600',
-      color: c.subtitle, // צבע טקסט משני
+      color: c.subtitle, // Theme-driven secondary text
     },
+
     activeTabText: {
       color: '#fff',
       fontWeight: '700',
     },
-    
-    // --- Content ---
+
+    // Content
     contentArea: {
       flex: 1,
-    }
+      backgroundColor: c.background, // Ensures the whole screen respects dark mode
+    },
   });
 };

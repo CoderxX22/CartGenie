@@ -1,21 +1,22 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  ActivityIndicator, 
-  RefreshControl, 
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  RefreshControl,
   TouchableOpacity,
   Alert,
-  Share // אפשר להשתמש גם ב-expo-sharing
+  Platform,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Print from 'expo-print'; // 📌 ייבוא להדפסה
-import * as Sharing from 'expo-sharing'; // 📌 ייבוא לשיתוף
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { API_URL } from '../src/config/api';
+import { useAppColors } from '@/components/appThemeProvider';
 
 interface ReceiptHistoryItem {
   _id: string;
@@ -32,11 +33,13 @@ interface ReceiptHistoryItem {
 }
 
 export default function ReceiptFeedbackHistory() {
-  const router = useRouter();
+  const col = useAppColors();
+  const styles = useMemo(() => createStyles(col), [col]);
+
   const [historyItems, setHistoryItems] = useState<ReceiptHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // 📌 מצב טעינה ל-PDF
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const fetchReceipts = async () => {
     try {
@@ -45,12 +48,14 @@ export default function ReceiptFeedbackHistory() {
         setLoading(false);
         return;
       }
-      // הוספתי sort כדי שהכי חדש יהיה למעלה
+
       const res = await fetch(`${API_URL}/api/history/receipts/${username}?t=${Date.now()}`);
       const data = await res.json();
 
       if (data.success) {
-        setHistoryItems(data.data.sort((a: any, b: any) => new Date(b.scanDate).getTime() - new Date(a.scanDate).getTime()));
+        setHistoryItems(
+          data.data.sort((a: any, b: any) => new Date(b.scanDate).getTime() - new Date(a.scanDate).getTime())
+        );
       }
     } catch (error) {
       console.error('Error fetching receipts:', error);
@@ -66,13 +71,13 @@ export default function ReceiptFeedbackHistory() {
     }, [])
   );
 
-  // 📌 פונקציה ליצירת HTML עבור ה-PDF
   const generateHtml = () => {
-    const rows = historyItems.map(item => {
-      const date = new Date(item.scanDate).toLocaleDateString();
-      const time = new Date(item.scanDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      return `
+    const rows = historyItems
+      .map((item) => {
+        const date = new Date(item.scanDate).toLocaleDateString();
+        const time = new Date(item.scanDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        return `
         <tr>
           <td>
             <div class="store-name">${item.storeName || 'Unknown Store'}</div>
@@ -88,7 +93,8 @@ export default function ReceiptFeedbackHistory() {
           </td>
         </tr>
       `;
-    }).join('');
+      })
+      .join('');
 
     return `
       <html>
@@ -114,7 +120,7 @@ export default function ReceiptFeedbackHistory() {
         <body>
           <h1>Shopping History Report</h1>
           <div class="summary">Generated on ${new Date().toLocaleDateString()}</div>
-          
+
           <table>
             <thead>
               <tr>
@@ -136,7 +142,6 @@ export default function ReceiptFeedbackHistory() {
     `;
   };
 
-  // 📌 פונקציה שמפעילה את יצירת ה-PDF והשיתוף
   const handleExportPDF = async () => {
     if (historyItems.length === 0) {
       Alert.alert('No Data', 'There is no history to export.');
@@ -145,16 +150,9 @@ export default function ReceiptFeedbackHistory() {
 
     setIsGeneratingPdf(true);
     try {
-      // 1. צור את ה-HTML
       const html = generateHtml();
-
-      // 2. צור קובץ PDF
       const { uri } = await Print.printToFileAsync({ html });
-      console.log('PDF generated at:', uri);
-
-      // 3. שתף את הקובץ
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-      
     } catch (error) {
       console.error('Error generating PDF:', error);
       Alert.alert('Error', 'Failed to generate PDF report.');
@@ -164,56 +162,73 @@ export default function ReceiptFeedbackHistory() {
   };
 
   const handleDelete = (itemId: string) => {
-    Alert.alert("Delete Receipt", "Are you sure?", [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              const res = await fetch(`${API_URL}/api/history/${itemId}`, { method: 'DELETE' });
-              const data = await res.json();
-              if (data.success) {
-                setHistoryItems(prev => prev.filter(item => item._id !== itemId));
-              }
-            } catch (error) { console.error(error); }
+    Alert.alert('Delete Receipt', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const res = await fetch(`${API_URL}/api/history/${itemId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+              setHistoryItems((prev) => prev.filter((item) => item._id !== itemId));
+            }
+          } catch (error) {
+            console.error(error);
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const renderItem = ({ item }: { item: ReceiptHistoryItem }) => {
     const date = new Date(item.scanDate);
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-            <View style={styles.storeContainer}>
-                <View style={styles.iconBox}>
-                    <Ionicons name="receipt-outline" size={20} color="#fff" />
-                </View>
-                <View>
-                    <Text style={styles.storeName}>{item.storeName || 'Unknown Store'}</Text>
-                    <Text style={styles.dateText}>
-                        {date.toLocaleDateString()} • {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                </View>
+          <View style={styles.storeContainer}>
+            <View style={styles.iconBox}>
+              <Ionicons name="receipt-outline" size={20} color="#fff" />
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item._id)} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={18} color="#94A3B8" />
-            </TouchableOpacity>
+            <View>
+              <Text style={styles.storeName}>{item.storeName || 'Unknown Store'}</Text>
+              <Text style={styles.dateText}>
+                {date.toLocaleDateString()} • {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={() => handleDelete(item._id)} style={styles.deleteBtn} activeOpacity={0.8}>
+            <Ionicons name="trash-outline" size={18} color={col.subtitle} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.summaryContainer}>
-            <Text style={styles.itemCountText}>{item.itemCount} Items Scanned</Text>
-            <View style={styles.healthStats}>
-                {/* (שמרתי את אותו קוד שלך כאן) */}
-                {item.healthSummary.safe > 0 && <View style={[styles.statBadge, { backgroundColor: '#D1FAE5' }]}><Text style={[styles.statText, { color: '#065F46' }]}>✓ {item.healthSummary.safe}</Text></View>}
-                {item.healthSummary.caution > 0 && <View style={[styles.statBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.statText, { color: '#92400E' }]}>! {item.healthSummary.caution}</Text></View>}
-                {item.healthSummary.avoid > 0 && <View style={[styles.statBadge, { backgroundColor: '#FEE2E2' }]}><Text style={[styles.statText, { color: '#991B1B' }]}>✕ {item.healthSummary.avoid}</Text></View>}
-            </View>
+          <Text style={styles.itemCountText}>{item.itemCount} Items Scanned</Text>
+
+          <View style={styles.healthStats}>
+            {item.healthSummary.safe > 0 && (
+              <View style={[styles.statBadge, { backgroundColor: 'rgba(16,185,129,0.14)', borderColor: '#10B981' }]}>
+                <Text style={[styles.statText, { color: '#10B981' }]}>✓ {item.healthSummary.safe}</Text>
+              </View>
+            )}
+
+            {item.healthSummary.caution > 0 && (
+              <View style={[styles.statBadge, { backgroundColor: 'rgba(245,158,11,0.14)', borderColor: '#F59E0B' }]}>
+                <Text style={[styles.statText, { color: '#F59E0B' }]}>! {item.healthSummary.caution}</Text>
+              </View>
+            )}
+
+            {item.healthSummary.avoid > 0 && (
+              <View style={[styles.statBadge, { backgroundColor: 'rgba(239,68,68,0.14)', borderColor: '#EF4444' }]}>
+                <Text style={[styles.statText, { color: '#EF4444' }]}>✕ {item.healthSummary.avoid}</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
     );
@@ -221,38 +236,51 @@ export default function ReceiptFeedbackHistory() {
 
   return (
     <View style={styles.container}>
-      {/* 📌 כותרת עליונה עם כפתור ייצוא */}
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>History</Text>
-        <TouchableOpacity 
-            style={[styles.exportBtn, historyItems.length === 0 && { opacity: 0.5 }]} 
-            onPress={handleExportPDF}
-            disabled={isGeneratingPdf || historyItems.length === 0}
+
+        <TouchableOpacity
+          style={[styles.exportBtn, historyItems.length === 0 && { opacity: 0.5 }]}
+          onPress={handleExportPDF}
+          disabled={isGeneratingPdf || historyItems.length === 0}
+          activeOpacity={0.9}
         >
-            {isGeneratingPdf ? (
-                <ActivityIndicator size="small" color="#fff" />
-            ) : (
-                <>
-                    <Ionicons name="share-outline" size={18} color="#fff" />
-                    <Text style={styles.exportText}>Export PDF</Text>
-                </>
-            )}
+          {isGeneratingPdf ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.exportText}>Export PDF</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <View style={styles.centerContainer}><ActivityIndicator size="large" color="#0096c7" /></View>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={col.accent || '#0096c7'} />
+        </View>
       ) : (
         <FlatList
           data={historyItems}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReceipts(); }} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                fetchReceipts();
+              }}
+              tintColor={col.text}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={60} color="#CBD5E1" />
+              <Ionicons name="document-text-outline" size={60} color={col.subtitle} />
               <Text style={styles.emptyTitle}>No Receipts</Text>
+              <Text style={styles.emptySubtitle}>Receipts you save will appear here.</Text>
             </View>
           }
         />
@@ -261,47 +289,91 @@ export default function ReceiptFeedbackHistory() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  // 📌 עיצוב חדש לכותרת העליונה
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9'
-  },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#0F172A' },
-  exportBtn: {
-    flexDirection: 'row',
-    backgroundColor: '#0096c7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    gap: 6
-  },
-  exportText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+function createStyles(c: ReturnType<typeof useAppColors>) {
+  const ACCENT = c.accent || '#0096c7';
 
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  listContent: { padding: 16, paddingBottom: 40 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  storeContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center' },
-  storeName: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  dateText: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  deleteBtn: { padding: 4 },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 12 },
-  summaryContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemCountText: { fontSize: 13, color: '#64748B', fontWeight: '500' },
-  healthStats: { flexDirection: 'row', gap: 8 },
-  statBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, gap: 4 },
-  statText: { fontSize: 12, fontWeight: '700' },
-  emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#334155', marginTop: 16 },
-});
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 8,
+      backgroundColor: c.card,
+      borderBottomWidth: 1,
+      borderBottomColor: c.inputBorder,
+    },
+    headerTitle: { fontSize: 22, fontWeight: '800', color: c.text },
+
+    exportBtn: {
+      flexDirection: 'row',
+      backgroundColor: ACCENT,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: 'center',
+      gap: 6,
+      ...Platform.select({
+        ios: { shadowColor: '#0369A1', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 4 } },
+        android: { elevation: 2 },
+      }),
+    },
+    exportText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    listContent: { padding: 16, paddingBottom: 40 },
+
+    card: {
+      backgroundColor: c.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+        android: { elevation: 3 },
+      }),
+    },
+
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    storeContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
+    iconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: '#334155',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    storeName: { fontSize: 16, fontWeight: '800', color: c.text },
+    dateText: { fontSize: 12, color: c.subtitle, marginTop: 2 },
+
+    deleteBtn: { padding: 4 },
+
+    divider: { height: 1, backgroundColor: c.inputBorder, marginBottom: 12 },
+
+    summaryContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    itemCountText: { fontSize: 13, color: c.subtitle, fontWeight: '600' },
+
+    healthStats: { flexDirection: 'row', gap: 8 },
+    statBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    statText: { fontSize: 12, fontWeight: '800' },
+
+    emptyContainer: { alignItems: 'center', marginTop: 80, paddingHorizontal: 20 },
+    emptyTitle: { fontSize: 18, fontWeight: '800', color: c.text, marginTop: 16 },
+    emptySubtitle: { fontSize: 14, color: c.subtitle, textAlign: 'center', marginTop: 8 },
+  });
+}

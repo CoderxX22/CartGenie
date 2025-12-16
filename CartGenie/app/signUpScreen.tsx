@@ -14,58 +14,64 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAppColors } from '@/components/appThemeProvider';
-// 👇 וודא שהנתיב תואם למיקום הקבצים אצלך
-import { useSignUpLogic } from '../hooks/useSignUp'; 
-import { createAuthStyles } from '../app/styles/LoginScreen.styles'; 
+import { useSignUpLogic } from '../hooks/useSignUp';
+import { createAuthStyles } from '../app/styles/LoginScreen.styles';
 import { InputField } from '../components/InputField';
 import { PasswordInput } from '../components/passwordInput';
 import { StrengthMeter } from '../components/strengthMeter';
 
-const ACCENT = '#0096c7'; // צבע להדגשה מקומית (Checkbox)
+const ACCENT = '#0096c7'; // Local accent color for checkbox/link emphasis
 
 export default function SignUpScreen() {
-  const col = useAppColors();
-  
-  // 1. סגנונות משותפים (Card, Container, Buttons)
-  const authStyles = useMemo(() => createAuthStyles(col), [col]);
-  
-  // 2. סגנונות מקומיים (Checkbox, Errors, Spacing specific to signup)
-  const localStyles = useMemo(() => StyleSheet.create({
-    field: { 
-      marginBottom: 14 
-    },
-    termsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 6,
-      marginBottom: 16,
-      flexWrap: 'wrap',
-    },
-    termsText: {
-      marginLeft: 8,
-      color: col.text,
-      fontSize: 14,
-      flexShrink: 1,
-    },
-    termsLink: {
-      color: ACCENT,
-      textDecorationLine: 'underline',
-      fontWeight: '600',
-    },
-    errorText: { 
-      marginTop: 4, 
-      color: '#ef4444', 
-      fontSize: 12,
-      marginLeft: 4
-    },
-  }), [col]);
+  const col = useAppColors(); // App theme colors (dark/light, etc.)
 
+  // Shared auth UI styles (container/card/buttons) derived from theme colors
+  const authStyles = useMemo(() => createAuthStyles(col), [col]);
+
+  // Screen-specific styles created from theme colors (memoized to avoid re-creating on every render)
+  const localStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        field: { marginBottom: 14 }, // Standard spacing between form blocks
+        termsRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginTop: 6,
+          marginBottom: 16,
+          flexWrap: 'wrap' // Allows the terms text to wrap on small screens
+        },
+        termsText: {
+          marginLeft: 8,
+          color: col.text,
+          fontSize: 14,
+          flexShrink: 1 // Prevents layout overflow when text is long
+        },
+        termsLink: {
+          color: ACCENT,
+          textDecorationLine: 'underline',
+          fontWeight: '600'
+        },
+        errorText: {
+          marginTop: 4,
+          color: '#ef4444',
+          fontSize: 12,
+          marginLeft: 4
+        }
+      }),
+    [col]
+  );
+
+  // Business logic hook: form values, setters, actions (submit/show terms), and UI state
   const { form, setters, actions, state } = useSignUpLogic();
 
   return (
     <>
+      {/* Hide the header for a clean full-screen auth experience */}
       <Stack.Screen options={{ headerShown: false, title: 'Sign Up' }} />
+
+      {/* Prevents keyboard from covering inputs (especially on iOS) */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* Allows the layout to scroll when the keyboard is open */}
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
           <View style={authStyles.container}>
             <View style={authStyles.card}>
@@ -77,15 +83,19 @@ export default function SignUpScreen() {
                 colors={col}
                 placeholder="name@example.com"
                 value={form.email}
-                onChangeText={(t) => { setters.setEmail(t); actions.clearError('email'); }}
+                onChangeText={(t) => {
+                  setters.setEmail(t);          // Update email field
+                  actions.clearError('email');  // Clear validation error once user edits
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                // @ts-ignore - אם הוספת תמיכה ב-error ל-InputField
-                error={state.errors.email} 
+                // Forward potential error to the component (if supported)
+                // @ts-ignore
+                error={state.errors.email}
               />
-              {/* Fallback error text if InputField doesn't handle it yet */}
+              {/* Fallback error rendering if InputField doesn't support an error prop */}
               {state.errors.email && !InputField.prototype.hasOwnProperty('error') && (
-                 <Text style={localStyles.errorText}>{state.errors.email}</Text>
+                <Text style={localStyles.errorText}>{state.errors.email}</Text>
               )}
 
               {/* Username */}
@@ -94,26 +104,34 @@ export default function SignUpScreen() {
                 colors={col}
                 placeholder="Enter a username"
                 value={form.username}
-                onChangeText={(t) => { setters.setUsername(t); actions.clearError('username'); }}
+                onChangeText={(t) => {
+                  setters.setUsername(t);            // Update username field
+                  actions.clearError('username');    // Clear validation error once user edits
+                }}
                 autoCapitalize="none"
                 // @ts-ignore
                 error={state.errors.username}
               />
-               {state.errors.username && !InputField.prototype.hasOwnProperty('error') && (
-                 <Text style={localStyles.errorText}>{state.errors.username}</Text>
+              {/* Fallback error rendering if InputField doesn't support an error prop */}
+              {state.errors.username && !InputField.prototype.hasOwnProperty('error') && (
+                <Text style={localStyles.errorText}>{state.errors.username}</Text>
               )}
 
-              {/* Password Section */}
+              {/* Password */}
               <View style={localStyles.field}>
                 <Text style={authStyles.label}>Password</Text>
                 <PasswordInput
                   colors={col}
                   placeholder="Enter a password"
                   value={form.pwd}
-                  onChangeText={(t) => { setters.setPwd(t); actions.clearError('pwd'); }}
+                  onChangeText={(t) => {
+                    setters.setPwd(t);          // Update password field
+                    actions.clearError('pwd');  // Clear validation error once user edits
+                  }}
                   error={state.errors.pwd}
                   returnKeyType="next"
                 />
+                {/* Visual indicator based on computed strength from the logic hook */}
                 <StrengthMeter strength={state.strength} colors={col} />
               </View>
 
@@ -124,37 +142,53 @@ export default function SignUpScreen() {
                   colors={col}
                   placeholder="Repeat password"
                   value={form.pwd2}
-                  onChangeText={(t) => { setters.setPwd2(t); actions.clearError('pwd2'); }}
+                  onChangeText={(t) => {
+                    setters.setPwd2(t);          // Update confirmation password
+                    actions.clearError('pwd2');  // Clear validation error once user edits
+                  }}
                   error={state.errors.pwd2}
                   returnKeyType="done"
-                  onSubmitEditing={actions.onSubmit}
+                  onSubmitEditing={actions.onSubmit} // Submits form from keyboard "Done"
                 />
               </View>
 
-              {/* Terms Checkbox */}
-              <Pressable style={localStyles.termsRow} onPress={() => setters.setAccept(!form.accept)}>
+              {/* Terms acceptance */}
+              <Pressable
+                style={localStyles.termsRow}
+                onPress={() => setters.setAccept(!form.accept)} // Toggle checkbox state
+              >
                 <Ionicons
                   name={form.accept ? 'checkbox' : 'square-outline'}
                   size={24}
                   color={form.accept ? ACCENT : col.subtitle}
                 />
                 <Text style={localStyles.termsText}>
-                   I accept the{' '}
-                  <Text style={localStyles.termsLink} onPress={actions.showTerms}>
+                  I accept the{' '}
+                  <Text
+                    style={localStyles.termsLink}
+                    onPress={(e) => {
+                      // Prevents the parent Pressable from toggling acceptance when the link is pressed
+                      e.stopPropagation?.();
+                      actions.showTerms(); // Opens Terms & Privacy Policy (Alert or screen)
+                    }}
+                  >
                     Terms and Privacy Policy
                   </Text>
                 </Text>
               </Pressable>
+
+              {/* Terms validation error */}
               {!!state.errors.accept && <Text style={localStyles.errorText}>{state.errors.accept}</Text>}
 
-              {/* Submit Button - שימוש ב-primaryButton מה-Shared Styles */}
+              {/* Submit */}
               <TouchableOpacity
                 style={[authStyles.primaryButton, state.disabled && { opacity: 0.5 }]}
-                onPress={actions.onSubmit}
-                disabled={state.disabled}
+                onPress={actions.onSubmit}     // Triggers validation + registration request
+                disabled={state.disabled}      // Disabled until form is valid and terms accepted
               >
                 {state.loading ? (
                   <>
+                    {/* Loading indicator while registration request is in progress */}
                     <ActivityIndicator size="small" color="#fff" />
                     <Text style={[authStyles.primaryButtonText, { marginLeft: 8 }]}>Creating…</Text>
                   </>
@@ -172,15 +206,14 @@ export default function SignUpScreen() {
                 <Text style={authStyles.dividerText}>or</Text>
                 <View style={authStyles.divider} />
               </View>
-              
-              {/* Link to Login */}
-              <Link href={'/login' as Href} asChild>
-                <TouchableOpacity disabled={state.loading}>
-                  <Text style={authStyles.footerText}>
-                    Already have an account? <Text style={authStyles.linkText}>Log in</Text>
-                  </Text>
-                </TouchableOpacity>
-              </Link>
+
+              {/* Navigate to Login */}
+              <Text style={authStyles.footerText}>
+                  Already have an account?{' '}
+                    <Link href={'/login' as Href} asChild>
+                    <Text style={authStyles.linkText}>Log in</Text>
+                    </Link>
+              </Text>
             </View>
           </View>
         </ScrollView>

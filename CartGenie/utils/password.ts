@@ -21,7 +21,7 @@ export function getPasswordStrength(pwd: string) {
     if (repeats) score -= 1;
     score = Math.max(0, Math.min(4, score));
   
-    const labels = ['very weak', 'weak', 'medium', 'strong', 'strong'];
+    const labels = ['Very weak', 'Weak', 'Medium', 'Strong', 'Very strong'];
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#22c55e'];
   
     return { level: score, label: labels[score], color: colors[score] };

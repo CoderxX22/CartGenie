@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useRouter, Href } from 'expo-router';
 import { API_URL } from '../src/config/api';
-import { useUploadFile } from './useUploadFile'; // שימוש חוזר!
+import { useUploadFile } from './useUploadFile';
 
 export const useScanReceiptLogic = () => {
   const router = useRouter();
-  
-  // שימוש ב-Hook הגנרי
-  const { file, takePhoto, pickFromLibrary } = useUploadFile();
+
+  const { file, takePhoto, pickFromLibrary, pickDocument } = useUploadFile();
   const [loading, setLoading] = useState(false);
 
   const uploadAndScan = async () => {
@@ -25,10 +24,8 @@ export const useScanReceiptLogic = () => {
       formData.append('receiptImage', {
         uri: cleanUri,
         name: file.name,
-        type: file.mimeType || 'image/jpeg',
+        type: file.mimeType || 'application/octet-stream',
       });
-
-      console.log('Sending to OCR...', `${API_URL}/api/ocr/scan`);
 
       const response = await fetch(`${API_URL}/api/ocr/scan`, {
         method: 'POST',
@@ -37,20 +34,15 @@ export const useScanReceiptLogic = () => {
       });
 
       const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'OCR Failed');
 
-      if (!data.success) {
-        throw new Error(data.message || 'OCR Failed');
-      }
-
-      // ניווט לתוצאות
       router.push({
         pathname: '/ReceiptResultsScreen' as Href,
         params: {
           rawText: data.data.rawText,
-          extractedItems: JSON.stringify(data.data.extractedItems)
-        }
+          extractedItems: JSON.stringify(data.data.extractedItems),
+        },
       });
-
     } catch (error) {
       console.error('Scan error:', error);
       Alert.alert('Error', 'Failed to scan receipt.');
@@ -61,6 +53,6 @@ export const useScanReceiptLogic = () => {
 
   return {
     state: { file, loading },
-    actions: { takePhoto, pickFromLibrary, uploadAndScan }
+    actions: { takePhoto, pickFromLibrary, pickDocument, uploadAndScan },
   };
 };
