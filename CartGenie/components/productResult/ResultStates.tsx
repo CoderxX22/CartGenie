@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '@/components/appThemeProvider';
 import { createProductResultStyles } from '../../app/styles/productResult.styles';
+import { router } from 'expo-router';
 
 const ACCENT = '#0096c7';
 
@@ -31,7 +32,7 @@ export const ErrorView = ({ error, barcode, onRetry, onDone, colors }: any) => {
         <View style={styles.barcodeBox}>
           <Text style={styles.barcodeText}>{barcode}</Text>
         </View>
-        <TouchableOpacity style={styles.btn} onPress={onRetry} activeOpacity={0.9}>
+        <TouchableOpacity style={styles.btn} onPress={() => router.replace('/scanProduct')} activeOpacity={0.9}>
           <Text style={styles.btnText}>Scan Again</Text>
         </TouchableOpacity>
       </View>

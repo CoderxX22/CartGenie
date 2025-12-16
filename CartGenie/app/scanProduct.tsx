@@ -5,11 +5,21 @@ import ScanProduct from '@/components/ScanProduct';
 import { useScanProductLogic } from '@/hooks/useScanProductLogic';
 import { HomeBackButton } from '@/components/scanProduct/HomeBackButton';
 
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react'; // וודא שיש לך גם את אלו
+
 const ACCENT = '#0096c7';
 
 export default function ScanProductScreen() {
   const col = useAppColors();
   const { actions } = useScanProductLogic();
+  const [scanned, setScanned] = useState(false);
+  
+  useFocusEffect(
+    useCallback(() => {
+      setScanned(false); // משחרר את הנעילה
+    }, [])
+  );
 
   return (
     <>

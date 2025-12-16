@@ -1,7 +1,7 @@
 import UserData from '../models/userData.js';
 
 /**
- * שמירת נתוני משתמש חדש או עדכון נתונים קיימים
+ * שמירת נתוני משתמש חדש או עדכון נתונים קיימים (לוגיקה מתוקנת)
  * POST /api/userdata/save
  */
 export const saveUserData = async (req, res) => {
@@ -9,113 +9,125 @@ export const saveUserData = async (req, res) => {
     const {
       username,
       // Personal Details
-      firstName,
-      lastName,
-      birthDate,
-      ageYears,
-      sex,
+      firstName, lastName, birthDate, ageYears, sex,
       // Body Measurements
-      weight,
-      height,
-      waist,
-      bmi,
-      whtr,
-      // Medical Conditions (מחלות)
-      illnesses,
-      otherIllnesses,
-      // Blood Test (optional)
+      weight, height, waist, bmi, whtr,
+      // Medical Conditions
+      illnesses, otherIllnesses,
+      // Blood Test
       bloodTest
     } = req.body;
 
-    // בדיקת שדות חובה
-    const requiredFields = ['username', 'firstName', 'lastName', 'birthDate', 'sex', 'weight', 'height', 'waist', 'bmi'];
-    const missing = requiredFields.filter(field => !req.body[field]);
-
-    if (missing.length > 0) {
-      console.log('❌ Validation failed. Missing:', missing);
-      return res.status(400).json({ 
-        success: false, 
-        message: `Missing required fields: ${missing.join(', ')}` 
-      });
+    // 1. בדיקת בסיס - חייבים לפחות שם משתמש
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'Username is required' });
     }
 
-    // עיבוד רשימת המחלות (Illnesses)
-    let parsedIllnesses = [];
-    
-    if (illnesses) {
-      try {
-        parsedIllnesses = typeof illnesses === 'string' 
-          ? JSON.parse(illnesses) 
-          : illnesses;
-      } catch (e) {
-        parsedIllnesses = [];
-      }
-    }
+    const normalizedUsername = username.toLowerCase().trim();
 
-    // בניית מערך מחלות למבנה הסכמה
-    const illnessesArray = parsedIllnesses.map(illnessName => ({
-      name: illnessName,
-      severity: 'moderate' // ערך ברירת מחדל
-    }));
+    // 2. חיפוש המשתמש במסד הנתונים
+    let userDataDoc = await UserData.findOne({ username: normalizedUsername });
 
-    // בניית אובייקט הנתונים המלא לשמירה/עדכון
-    const userData = {
-      username: username.toLowerCase().trim(),
-      personalDetails: {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        birthDate: new Date(birthDate),
-        age: parseInt(ageYears),
-        sex
-      },
-      bodyMeasurements: {
-        weight: parseFloat(weight),
-        height: parseFloat(height),
-        waist: parseFloat(waist),
-        bmi: parseFloat(bmi),
-        whtr: whtr ? parseFloat(whtr) : 0
-      },
-      medicalData: {
-        illnesses: illnessesArray,
-        otherIllnesses: otherIllnesses?.trim() || ''
-      },
-      bloodTest: bloodTest || {},
-      // אם יש שם קובץ, סימן שהתהליך הושלם
-      isCompleted: !!bloodTest?.fileName 
-    };
-
-    // חיפוש האם המשתמש כבר קיים
-    let userDataDoc = await UserData.findOne({ username: userData.username });
-
+    // --- תרחיש א': עדכון משתמש קיים (Update) ---
     if (userDataDoc) {
-      // עדכון משתמש קיים
-      userDataDoc.personalDetails = userData.personalDetails;
-      userDataDoc.bodyMeasurements = userData.bodyMeasurements;
-      userDataDoc.medicalData = userData.medicalData;
+      console.log(`🔄 Updating existing user: ${normalizedUsername}`);
+
+      // עדכון שדות רק אם הם נשלחו ב-Body (בדיקה שאינם undefined)
       
-      // עדכון בדיקות דם רק אם נשלח מידע חדש
-      if (bloodTest && Object.keys(bloodTest).length > 0) {
-        userDataDoc.bloodTest = userData.bloodTest;
+      // Personal Details Update
+      if (firstName) userDataDoc.personalDetails.firstName = firstName.trim();
+      if (lastName) userDataDoc.personalDetails.lastName = lastName.trim();
+      if (birthDate) userDataDoc.personalDetails.birthDate = new Date(birthDate);
+      if (ageYears) userDataDoc.personalDetails.age = parseInt(ageYears);
+      if (sex) userDataDoc.personalDetails.sex = sex;
+
+      // Body Measurements Update
+      if (weight !== undefined) userDataDoc.bodyMeasurements.weight = parseFloat(weight);
+      if (height !== undefined) userDataDoc.bodyMeasurements.height = parseFloat(height);
+      if (waist !== undefined) userDataDoc.bodyMeasurements.waist = parseFloat(waist);
+      if (bmi !== undefined) userDataDoc.bodyMeasurements.bmi = parseFloat(bmi);
+      if (whtr !== undefined) userDataDoc.bodyMeasurements.whtr = parseFloat(whtr);
+
+      // Medical Data Update
+      if (illnesses !== undefined) {
+        let parsedIllnesses = [];
+        try {
+          parsedIllnesses = typeof illnesses === 'string' ? JSON.parse(illnesses) : illnesses;
+        } catch (e) { parsedIllnesses = []; }
+        
+        userDataDoc.medicalData.illnesses = parsedIllnesses.map(name => ({ name, severity: 'moderate' }));
       }
       
-      // בדיקת השלמה (ניתן להשתמש גם במתודה של המודל)
-      if (userData.isCompleted) userDataDoc.isCompleted = true;
+      if (otherIllnesses !== undefined) {
+        userDataDoc.medicalData.otherIllnesses = otherIllnesses.trim();
+      }
+
+      // Blood Test Update
+      if (bloodTest && Object.keys(bloodTest).length > 0) {
+        userDataDoc.bloodTest = bloodTest;
+        if (bloodTest.fileName) userDataDoc.isCompleted = true;
+      }
 
       await userDataDoc.save();
-      
+
       return res.json({ 
         success: true, 
         message: 'User data updated successfully',
         data: userDataDoc,
         isNew: false
       });
-    } else {
-      // יצירת רשומה חדשה
-      userDataDoc = await UserData.create(userData);
-      
+    } 
+
+    // --- תרחיש ב': יצירת משתמש חדש (Create) ---
+    else {
+      console.log(`🆕 Creating new user: ${normalizedUsername}`);
+
+      const requiredFields = ['firstName', 'lastName', 'birthDate', 'sex', 'weight', 'height', 'waist', 'bmi'];
+      const missing = requiredFields.filter(field => !req.body[field]);
+
+      if (missing.length > 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Missing required fields for new user: ${missing.join(', ')}` 
+        });
+      }
+
+      let parsedIllnesses = [];
+      if (illnesses) {
+        try {
+          parsedIllnesses = typeof illnesses === 'string' ? JSON.parse(illnesses) : illnesses;
+        } catch (e) {}
+      }
+
+      const newUserData = {
+        username: normalizedUsername,
+        personalDetails: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          birthDate: new Date(birthDate),
+          age: parseInt(ageYears),
+          sex
+        },
+        bodyMeasurements: {
+          weight: parseFloat(weight),
+          height: parseFloat(height),
+          waist: parseFloat(waist),
+          bmi: parseFloat(bmi),
+          whtr: whtr ? parseFloat(whtr) : 0
+        },
+        medicalData: {
+          illnesses: parsedIllnesses.map(name => ({ name, severity: 'moderate' })),
+          otherIllnesses: otherIllnesses?.trim() || ''
+        },
+        bloodTest: bloodTest || {},
+        isCompleted: !!bloodTest?.fileName 
+      };
+
+      userDataDoc = await UserData.create(newUserData);
+
       return res.status(201).json({ 
         success: true, 
-        message: 'User data saved successfully',
+        message: 'User created successfully',
         data: userDataDoc,
         isNew: true
       });
@@ -138,37 +150,15 @@ export const saveUserData = async (req, res) => {
 export const getUserData = async (req, res) => {
   try {
     const { username } = req.params;
+    if (!username) return res.status(400).json({ success: false, message: 'Username is required' });
 
-    if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username is required' 
-      });
-    }
+    const userData = await UserData.findOne({ username: username.toLowerCase().trim() });
+    if (!userData) return res.status(404).json({ success: false, message: 'User data not found' });
 
-    const userData = await UserData.findOne({ 
-      username: username.toLowerCase().trim() 
-    });
-
-    if (!userData) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User data not found' 
-      });
-    }
-
-    res.json({ 
-      success: true, 
-      data: userData 
-    });
-
+    res.json({ success: true, data: userData });
   } catch (error) {
     console.error('Error fetching user data:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error while fetching user data',
-      error: error.message 
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
@@ -179,131 +169,63 @@ export const getUserData = async (req, res) => {
 export const updateBloodTest = async (req, res) => {
   try {
     const { username, fileName, fileUrl, fileSize } = req.body;
+    if (!username) return res.status(400).json({ success: false, message: 'Username is required' });
 
-    if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username is required' 
-      });
-    }
+    const userData = await UserData.findOne({ username: username.toLowerCase().trim() });
+    if (!userData) return res.status(404).json({ success: false, message: 'User data not found' });
 
-    const userData = await UserData.findOne({ 
-      username: username.toLowerCase().trim() 
-    });
-
-    if (!userData) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User data not found' 
-      });
-    }
-
-    // עדכון פרטי בדיקת הדם
-    userData.bloodTest = {
-      fileName,
-      fileUrl,
-      fileSize,
-      uploadDate: new Date(),
-      status: 'uploaded'
-    };
-
-    // סימון שהפרופיל הושלם מכיוון שיש בדיקת דם
+    userData.bloodTest = { fileName, fileUrl, fileSize, uploadDate: new Date(), status: 'uploaded' };
     userData.isCompleted = true;
     
     await userData.save();
-
-    res.json({ 
-      success: true, 
-      message: 'Blood test data updated successfully',
-      data: userData 
-    });
-
+    res.json({ success: true, message: 'Blood test updated', data: userData });
   } catch (error) {
     console.error('Error updating blood test:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error while updating blood test',
-      error: error.message 
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
 /**
- * מחיקת נתוני משתמש
+ * מחיקת נתוני משתמש (הפונקציה שהייתה חסרה לך)
  * DELETE /api/userdata/:username
  */
 export const deleteUserData = async (req, res) => {
   try {
     const { username } = req.params;
+    if (!username) return res.status(400).json({ success: false, message: 'Username is required' });
 
-    if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username is required' 
-      });
-    }
-
-    const result = await UserData.deleteOne({ 
-      username: username.toLowerCase().trim() 
-    });
+    const result = await UserData.deleteOne({ username: username.toLowerCase().trim() });
 
     if (result.deletedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User data not found' 
-      });
+      return res.status(404).json({ success: false, message: 'User data not found' });
     }
 
-    res.json({ 
-      success: true, 
-      message: 'User data deleted successfully' 
-    });
-
+    res.json({ success: true, message: 'User data deleted successfully' });
   } catch (error) {
     console.error('Error deleting user data:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error while deleting user data',
-      error: error.message 
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
 /**
- * קבלת כל המשתמשים (למטרות ניהול/אדמין)
+ * קבלת כל המשתמשים
  * GET /api/userdata/all
  */
 export const getAllUserData = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const users = await UserData.find()
-      .select('-__v') // הסתרת שדה הגרסה של מונגו
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
-
+    const users = await UserData.find().select('-__v').skip(skip).limit(parseInt(limit)).sort({ createdAt: -1 });
     const total = await UserData.countDocuments();
 
     res.json({ 
       success: true, 
       data: users,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) }
     });
-
   } catch (error) {
-    console.error('Error fetching all user data:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error while fetching all user data',
-      error: error.message 
-    });
+    console.error('Error fetching all users:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

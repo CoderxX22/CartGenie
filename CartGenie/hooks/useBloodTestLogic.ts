@@ -44,24 +44,37 @@ export const useBloodTestLogic = () => {
 
     try {
       const formData = new FormData();
+      
+      // תיקון נתיב לאנדרואיד
       const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
       
+      // זיהוי סוג קובץ נכון - ברירת מחדל ל-PDF אם זה PDF
+      const fileType = file.mimeType || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
       formData.append('username', getStringParam(params.username) || 'Guest');
       
-      // @ts-ignore - TypeScript issue with FormData in React Native
+      // @ts-ignore
       formData.append('bloodTestFile', {
         uri: cleanUri,
         name: file.name,
-        type: file.mimeType || 'image/jpeg',
+        type: fileType, // ✅ תיקון 1: סוג קובץ דינמי ונכון
       });
+
+      console.log('📤 Uploading file:', file.name, fileType);
 
       const response = await fetch(`${API_URL}/api/blood-test/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' },
+        // ✅ תיקון 2: מחקנו את ה-Header של Content-Type!
+        // ה-fetch יוסיף אותו לבד עם ה-boundary הנכון.
+        headers: {
+            'Accept': 'application/json',
+        },
         body: formData,
       });
 
       const json = await response.json();
+      console.log('📥 Server Response:', json);
+
       if (!json.success) throw new Error(json.message || 'Server error');
 
       setAnalysisResults(json.data);

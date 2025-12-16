@@ -103,5 +103,28 @@ export const createBloodTestStyles = (c: AppColors) => {
     },
     diagnosisText: { color: '#b91c1c', fontWeight: '600', fontSize: 12 },
     healthyText: { color: '#15803d', fontStyle: 'italic' },
+    // הוסף את אלו לאובייקט ה-StyleSheet הקיים שלך:
+
+successBanner: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#ECFDF5', // רקע ירקרק בהיר
+  padding: 12,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#10B981', // מסגרת ירוקה
+  marginBottom: 16,
+  gap: 12,
+},
+successTitle: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: '#064E3B',
+},
+successSubtitle: {
+  fontSize: 14,
+  color: '#065F46',
+  marginTop: 2,
+},
   });
 };

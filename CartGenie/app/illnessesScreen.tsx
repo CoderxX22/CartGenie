@@ -1,30 +1,49 @@
 import React, { useMemo } from 'react';
 import { Stack } from 'expo-router';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator
+  View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppColors } from '@/components/appThemeProvider';
 import { useIllnessesScreenLogic } from '../hooks/useIllnessesScreen';
-import { createIllnessesStyles } from '../app/styles/illnesses.styles';
 import { IllnessChip, ActionPill } from '../components/IllnessesComponents';
-import { InputField } from '../components/InputField'; // שימוש חוזר
+import { InputField } from '../components/InputField';
 
 const ACCENT = '#0096c7';
 
 export default function IllnessesScreen() {
   const insets = useSafeAreaInsets();
   const col = useAppColors();
-  const styles = useMemo(() => createIllnessesStyles(col), [col]);
+
+  // 1. הגנה מקריסה: אם ערכת הנושא עדיין לא נטענה, אל תנסה ליצור סטיילים
+  if (!col) {
+    return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+  }
+
+  // יצירת הסטיילים עם Memo
+  const styles = useMemo(() => createResponsiveStyles(col, insets), [col, insets]);
   
-  const { state, actions } = useIllnessesScreenLogic();
-  const { query, selected, other, filteredIllnesses, isSaving, loadingIllnesses, hasSelection, selectedCount } = state;
+  // 2. שליפת הלוגיקה בצורה בטוחה
+  const logic = useIllnessesScreenLogic();
+  const { state, actions } = logic || {}; // הגנה אם ה-Hook מחזיר undefined
+
+  // 3. פירוק משתנים עם ערכי ברירת מחדל (מונע קריסה של "Cannot read property")
+  const { 
+    query = '', 
+    selected = new Set(), 
+    other = '', 
+    filteredIllnesses = [], 
+    isSaving = false, 
+    loadingIllnesses = false, 
+    hasSelection = false, 
+    selectedCount = 0 
+  } = state || {};
 
   if (loadingIllnesses) {
     return (
-      <View style={[styles.container, { justifyContent: 'center' }]}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
@@ -33,9 +52,14 @@ export default function IllnessesScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Health Conditions' }} />
-      <View style={styles.container}>
+      
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
         <ScrollView
-          contentContainerStyle={[styles.container, { paddingTop: insets.top + 8 }]}
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
@@ -46,13 +70,13 @@ export default function IllnessesScreen() {
 
             {/* Search Bar */}
             <View style={styles.searchRow}>
-              <Ionicons name="search" size={16} color={col.subtitle} />
+              <Ionicons name="search" size={20} color={col.subtitle} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search conditions..."
                 placeholderTextColor={col.subtitle}
                 value={query}
-                onChangeText={actions.setQuery}
+                onChangeText={actions?.setQuery}
               />
             </View>
 
@@ -62,67 +86,161 @@ export default function IllnessesScreen() {
                 label="Nothing" 
                 icon="checkmark-done" 
                 isPrimary 
-                onPress={actions.onConfirmNothing} 
+                onPress={actions?.onConfirmNothing} 
                 colors={col} 
               />
               <ActionPill 
-                label="Clear All" 
+                label="Clear" 
                 icon="close-circle-outline" 
-                onPress={actions.handleClearAll} 
+                onPress={actions?.handleClearAll} 
                 colors={col} 
               />
-              <View style={[styles.pillButton, { backgroundColor: col.inputBorder, borderColor: col.inputBorder }]}>
-                 <Ionicons name="list-circle-outline" size={16} color={col.text} />
-                 <Text style={styles.pillButtonText}>Selected: {selectedCount}</Text>
+              <View style={[styles.pillButton, { backgroundColor: col.inputBorder }]}>
+                 <Text style={styles.pillButtonText}>{selectedCount}</Text>
               </View>
             </View>
 
             {/* Chips Grid */}
             <View style={styles.chipsWrap}>
-              {filteredIllnesses.map((item) => (
+              {/* הגנה נוספת: מוודאים שהמערך קיים לפני שעושים עליו map */}
+              {Array.isArray(filteredIllnesses) && filteredIllnesses.map((item) => (
                 <IllnessChip
                   key={item}
                   label={item}
-                  isSelected={selected.has(item)}
-                  onPress={() => actions.handleToggle(item)}
+                  isSelected={selected?.has(item)}
+                  onPress={() => actions?.handleToggle(item)}
                   colors={col}
                 />
               ))}
             </View>
 
             {/* Other Input */}
-            <InputField 
-                label="Other (free text)"
-                placeholder="Type another condition..."
-                value={other}
-                onChangeText={actions.setOther}
-                colors={col}
-                maxLength={80}
-            />
+            <View style={styles.inputContainer}>
+                <InputField 
+                    label="Other (free text)"
+                    placeholder="Type another condition..."
+                    value={other}
+                    onChangeText={actions?.setOther}
+                    colors={col}
+                    maxLength={80}
+                />
+            </View>
 
             {/* Finish Button */}
             <TouchableOpacity
               style={[styles.primaryButton, (!hasSelection || isSaving) && { opacity: 0.6 }]}
-              onPress={actions.onFinish}
+              onPress={actions?.onFinish}
               disabled={!hasSelection || isSaving}
-              activeOpacity={0.92}
             >
               {isSaving ? (
-                <>
-                  <ActivityIndicator size="small" color="#fff" />
-                  <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>Saving Profile...</Text>
-                </>
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Finish & Save</Text>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginLeft: 8 }} />
-                </>
+                <Text style={styles.primaryButtonText}>Finish & Save</Text>
               )}
             </TouchableOpacity>
 
           </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </>
   );
 }
+
+// --- Styles Definition ---
+const createResponsiveStyles = (col: any, insets: any) => StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: col?.background || '#fff',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: col?.background || '#fff',
+  },
+  scrollContent: {
+    paddingTop: insets?.top ? insets.top + 10 : 20,
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+  },
+  card: {
+    width: '100%',
+    alignSelf: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: col?.text || '#000',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: col?.subtitle || '#666',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: col?.card || col?.background || '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 50,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: col?.inputBorder || '#ccc',
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: col?.text || '#000',
+    height: '100%',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 10,
+  },
+  pillButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pillButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: col?.text || '#000',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap', // רספונסיביות
+    gap: 10,
+    marginBottom: 24,
+  },
+  inputContainer: {
+    marginBottom: 30,
+  },
+  primaryButton: {
+    backgroundColor: '#0096c7',
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+});

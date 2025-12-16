@@ -5,7 +5,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppColors } from '@/components/appThemeProvider';
 import { useProductAnalysis } from '../hooks/useProductAnalysis';
 import { createProductResultStyles } from './styles/productResult.styles';
-
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react'; // וודא שיש לך גם את אלו
 // DRY Components
 import { AiAnalysisCard } from '../components/productResult/AiAnalysisCard';
 import { ProductMiniCard } from '../components/productResult/ProductMiniCard';
@@ -39,7 +40,7 @@ export default function ProductResultScreen() {
         <ErrorView 
           error={errorMsg} 
           barcode={barcode} 
-          onRetry={() => router.back()} 
+          onRetry={() => router.replace('/scanProduct')} 
           onDone={() => router.push('/(tabs)/homePage')}
           colors={col} 
         />
@@ -61,7 +62,7 @@ export default function ProductResultScreen() {
         {aiResult && <AiAnalysisCard result={aiResult} colors={col} />}
 
         {/* Scan Another Button */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => router.back()} activeOpacity={0.9}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => router.replace('/scanProduct')} activeOpacity={0.9}>
           <Text style={styles.actionBtnText}>Scan Another Item</Text>
         </TouchableOpacity>
 

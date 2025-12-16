@@ -8,6 +8,7 @@ import { useBloodTestLogic } from '../hooks/useBloodTestLogic';
 import { createBloodTestStyles } from '../app/styles/bloodTest.styles';
 
 const ACCENT = '#0096c7';
+const SUCCESS_COLOR = '#10B981'; // צבע ירוק להצלחה
 
 export default function BloodTestUploadScreen() {
   const col = useAppColors();
@@ -55,7 +56,11 @@ export default function BloodTestUploadScreen() {
 
           {/* Action Button: Analyze */}
           <TouchableOpacity
-            style={[styles.primaryButton, (!file || isAnalyzing || isSaving) && { opacity: 0.6 }]}
+            style={[
+                styles.primaryButton, 
+                // אם אין קובץ, או שטוען, או ששומר - נחליש את הכפתור, אלא אם כן כבר יש תוצאות (ואז אפשר לנתח שוב)
+                (!file || isAnalyzing || isSaving) && { opacity: 0.6 }
+            ]}
             onPress={actions.onAnalyze}
             disabled={!file || isAnalyzing || isSaving}
           >
@@ -65,7 +70,10 @@ export default function BloodTestUploadScreen() {
                 <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>Analyzing...</Text>
               </>
             ) : (
-              <Text style={styles.primaryButtonText}>Analyze File</Text>
+              // 👇 השינוי כאן: שינוי הטקסט אם יש תוצאות
+              <Text style={styles.primaryButtonText}>
+                {analysisResults ? 'Analyze Other File' : 'Analyze File'}
+              </Text>
             )}
           </TouchableOpacity>
 
@@ -81,18 +89,13 @@ export default function BloodTestUploadScreen() {
           {analysisResults && (
             <View style={styles.resultsContainer}>
               <View style={styles.divider} />
-              <Text style={styles.resultsTitle}>📊 Results:</Text>
               
-              <View style={styles.tagsContainer}>
-                {analysisResults.diagnosis.map((diag, index) => (
-                  <View key={index} style={styles.diagnosisTag}>
-                    <Ionicons name="medkit-outline" size={16} color="#B91C1C" />
-                    <Text style={styles.diagnosisText}>{diag}</Text>
-                  </View>
-                ))}
-                 {analysisResults.diagnosis.length === 0 && (
-                    <Text style={styles.healthyText}>No abnormal conditions detected.</Text>
-                )}
+              {/* 👇 הודעת הצלחה חדשה */}
+              <View style={styles.successBanner}>
+                <Ionicons name="checkmark-circle" size={24} color={SUCCESS_COLOR} />
+                <View style={{flex: 1}}>
+                    <Text style={styles.successTitle}>Analysis Successful!</Text>
+                </View>
               </View>
 
               {/* Save & Continue Button */}

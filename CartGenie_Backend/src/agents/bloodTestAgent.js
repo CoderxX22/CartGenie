@@ -1,138 +1,200 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+import Tesseract from 'tesseract.js';
+import { fromPath } from 'pdf2pic';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-// --- תיקון ייבוא ---
+// --- ייבוא בטוח של pdf-parse ---
 const pdfLib = require('pdf-parse');
 let pdf;
-
-if (typeof pdfLib === 'function') {
-  pdf = pdfLib;
-} else if (pdfLib && typeof pdfLib.default === 'function') {
-  pdf = pdfLib.default;
-} else {
-  console.error("❌ CRITICAL: Could not find PDF function. Dump:", pdfLib);
-}
-
-import Tesseract from 'tesseract.js';
+if (typeof pdfLib === 'function') pdf = pdfLib;
+else if (pdfLib && typeof pdfLib.default === 'function') pdf = pdfLib.default;
 
 // ==========================================
-// 1. הגדרת הספים והחוקים (The Rules Engine)
+// חוקים (Rules Engine)
 // ==========================================
 const RULES = {
   high_cholesterol: {
-    keywords: ['LDL', 'Cholesterol', 'Low Density Lipoprotein'],
+    keywords: ['LDL', 'Cholesterol', 'לורטסלוכ'], 
     threshold: 100,
     conditionName: 'High Cholesterol'
   },
   diabetes: {
-    keywords: ['Glucose', 'HbA1C', 'Hemoglobin A1C'],
-    thresholds: {
-      'Glucose': 100,
-      'HbA1C': 5.7
-    },
+    keywords: ['Glucose', 'HbA1C', 'ןיבולגומה', 'Hemoglobin A1C'],
+    thresholds: { 'Glucose': 100, 'HbA1C': 5.7 },
     conditionName: 'Type 2 Diabetes'
   },
   high_blood_pressure: {
-    keywords: ['Sodium', 'Na ', 'Natrium'],
+    keywords: ['Sodium', 'Na ', 'ןרתנ', 'Natrium'],
     threshold: 145, 
-    // 🔥 תוספת חדשה: גבול עליון פיזיולוגי הגיוני
-    // ערך מעל 160 מעיד ב-99% מהמקרים על טעות קריאה (כמו כולסטרול)
-    sanityLimit: 165, 
+    sanityLimit: 165,
     conditionName: 'High Blood Pressure (Sodium)'
   }
 };
 
 /**
- * פונקציה ראשית שמנתבת לפי סוג הקובץ
+ * פונקציה ראשית לניתוח הקובץ
  */
 export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
+  let tempPdfPath = null;
+  let generatedImages = [];
+
   try {
-    console.log(`🔍 Starting local analysis for type: ${mimeType}`);
+    if (!fileBuffer || fileBuffer.length === 0) {
+        throw new Error("❌ Error: Received empty file buffer.");
+    }
+    console.log(`🔍 Analyzing file. Size: ${fileBuffer.length} bytes`);
+
     let extractedText = "";
 
-    // --- שלב א: חילוץ הטקסט ---
+    // --- נסיון ראשון: קריאה מהירה (pdf-parse) ---
     if (mimeType === 'application/pdf') {
-      console.log('📄 Processing PDF...');
-      if (!pdf) throw new Error('PDF parsing library failed to initialize.');
-      const data = await pdf(fileBuffer);
-      extractedText = data.text;
+      console.log('📄 Attempting fast PDF parsing...');
+      try {
+          const data = await pdf(fileBuffer);
+          extractedText = data.text;
+      } catch (e) {
+          console.warn("Fast parsing failed, trying OCR...");
+      }
     } 
-    else if (mimeType.startsWith('image/')) {
-      console.log('📷 Processing Image with Tesseract...');
-      const { data: { text } } = await Tesseract.recognize(fileBuffer, 'eng+heb');
-      extractedText = text;
-    } 
-    else {
-      throw new Error(`Unsupported file type: ${mimeType}`);
+
+    // --- נסיון שני: גיבוי OCR ---
+    if (mimeType.startsWith('image/') || extractedText.trim().length < 20) {
+      console.log('⚠️ Text layer empty/invalid. Switching to OCR...');
+      
+      if (mimeType === 'application/pdf') {
+          const tempFileName = `temp_${Date.now()}.pdf`;
+          tempPdfPath = path.join(os.tmpdir(), tempFileName);
+          fs.writeFileSync(tempPdfPath, fileBuffer);
+          
+          const options = {
+            density: 300,
+            saveFilename: `page_${Date.now()}`,
+            savePath: os.tmpdir(),
+            format: "png",
+            width: 2000,
+            height: 2000
+          };
+
+          const convert = fromPath(tempPdfPath, options);
+          console.log('🔄 Converting PDF pages to images...');
+          
+          for (let page = 1; page <= 3; page++) {
+            try {
+                const result = await convert(page, { responseType: "image" });
+                if (result.path) generatedImages.push(result.path);
+            } catch (err) { break; }
+          }
+      } 
+
+      console.log(`📷 Running Tesseract on ${generatedImages.length} images...`);
+      for (const imgPath of generatedImages) {
+          const imgBuffer = fs.readFileSync(imgPath);
+          const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb');
+          extractedText += text + " ";
+      }
     }
 
-    // --- שלב ב: ניקוי וניתוח הטקסט ---
-    const previewText = extractedText.substring(0, 200).replace(/\n/g, ' ');
-    console.log(`📝 Extracted Text Preview: "${previewText}..."`);
+    // --- שלב ג: ניתוח הטקסט ---
+    const cleanText = extractedText.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
+    console.log(`📝 Final Extracted Text (Preview): "${cleanText.substring(0, 150)}..."`);
     
-    const diagnosis = analyzeTextRules(extractedText);
-    console.log('🩺 Diagnosis found:', diagnosis);
+    if (cleanText.length < 10) {
+        throw new Error("Could not extract text. File might be empty or unreadable.");
+    }
+
+    // 👇 כאן השינוי: קבלת גם האבחון וגם כמות הממצאים
+    const { diagnosis, findingsCount } = analyzeTextRules(cleanText);
+    
+    console.log(`🩺 Stats: Found ${findingsCount} valid values. Diagnosis: ${diagnosis}`);
+
+    // 🔥 בדיקת תקינות: אם לא מצאנו שום ערך מספרי רלוונטי
+    if (findingsCount === 0) {
+        throw new Error("Could not detect any blood test values (Glucose, LDL, Sodium, etc). Please check the file quality or format.");
+    }
 
     return {
       success: true,
       diagnosis: diagnosis.length > 0 ? diagnosis : ['does not ill'],
-      rawText: extractedText 
+      rawText: extractedText.substring(0, 500)
     };
 
   } catch (error) {
-    console.error('❌ Analysis Error:', error);
-    throw new Error('Failed to analyze document locally: ' + error.message);
+    console.error('❌ Analysis Error:', error.message);
+    // זריקת השגיאה כדי שהקונטרולר יוכל לשלוח אותה ללקוח
+    throw error; 
+  } finally {
+      // Cleanup
+      try {
+          if (tempPdfPath && fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+          for (const imgPath of generatedImages) {
+              if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+          }
+      } catch (e) {}
   }
 };
 
 /**
- * המוח: עובר על הטקסט ומחפש התאמות לחוקים
+ * מנוע החוקים - מעודכן לספור ממצאים
  */
 function analyzeTextRules(text) {
   const diagnosisSet = new Set();
-  const cleanText = text.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
-
-  // 1. LDL
-  const ldlMatch = cleanText.match(/LDL.*?(\d{2,3}(?:\.\d)?)/i);
-  if (ldlMatch) {
-    const value = parseFloat(ldlMatch[1]);
-    console.log(`🧪 Found LDL: ${value}`);
-    if (value > RULES.high_cholesterol.threshold) diagnosisSet.add(RULES.high_cholesterol.conditionName);
+  let findingsCount = 0; // מונה כמה ערכים תקינים מצאנו סה"כ
+  
+  // 1. בדיקת LDL
+  // בודק אם המילה קיימת
+  if (text.match(/(?:LDL|Cholesterol|לורטסלוכ)/i)) {
+      // בודק אם יש מספר צמוד אליה
+      const match = text.match(/LDL.*?(\d{2,3})/i);
+      if (match) {
+          findingsCount++; // מצאנו ערך! (גם אם הוא תקין)
+          if (parseFloat(match[1]) > RULES.high_cholesterol.threshold) {
+              diagnosisSet.add(RULES.high_cholesterol.conditionName);
+          }
+      }
   }
 
-  // 2. Glucose
-  const glucoseMatch = cleanText.match(/Glucose.*?(\d{2,3})/i);
-  if (glucoseMatch) {
-    const value = parseFloat(glucoseMatch[1]);
-    console.log(`🧪 Found Glucose: ${value}`);
-    if (value > RULES.diabetes.thresholds.Glucose) diagnosisSet.add(RULES.diabetes.conditionName);
+  // 2. בדיקת גלוקוז
+  if (text.match(/Glucose/i)) {
+      const glucoseMatch = text.match(/Glucose.*?(\d{2,3})/i);
+      if (glucoseMatch) {
+          findingsCount++;
+          if (parseFloat(glucoseMatch[1]) > RULES.diabetes.thresholds.Glucose) {
+              diagnosisSet.add(RULES.diabetes.conditionName);
+          }
+      }
   }
 
-  // 3. HbA1C
-  const hba1cMatch = cleanText.match(/HbA1C.*?(\d{1,2}(?:\.\d)?)/i);
-  if (hba1cMatch) {
-    const value = parseFloat(hba1cMatch[1]);
-    console.log(`🧪 Found HbA1C: ${value}`);
-    if (value > RULES.diabetes.thresholds.HbA1C) diagnosisSet.add(RULES.diabetes.conditionName);
+  // 3. בדיקת HbA1C
+  if (text.match(/HbA1C/i)) {
+      const hba1cMatch = text.match(/HbA1C.*?(\d{1,2}(?:\.\d)?)/i);
+      if (hba1cMatch) {
+          findingsCount++;
+          if (parseFloat(hba1cMatch[1]) > RULES.diabetes.thresholds.HbA1C) {
+              diagnosisSet.add(RULES.diabetes.conditionName);
+          }
+      }
   }
 
-  // 4. Sodium (עם התיקון החדש)
-  const sodiumMatch = cleanText.match(/(?:Sodium|Na\s).*?(\d{3})/i);
-  if (sodiumMatch) {
-    const value = parseFloat(sodiumMatch[1]);
-    console.log(`🧪 Found Sodium candidate: ${value}`);
-
-    // 🔥 Sanity Check Logic 🔥
-    // אם הערך גבוה באופן קיצוני (מעל 165), סביר שזה כולסטרול שנשאב בטעות
-    if (value > RULES.high_blood_pressure.sanityLimit) {
-        console.warn(`⚠️ IGNORED Sodium value (${value}). It exceeds physiological sanity limit (${RULES.high_blood_pressure.sanityLimit}). Likely a parser error (e.g., read Cholesterol as Sodium).`);
-    } 
-    else if (value > RULES.high_blood_pressure.threshold) {
-        // רק אם זה עובר את בדיקת השפיות - מכניסים לאבחון
-        console.log(`✅ Valid High Sodium Detected: ${value}`);
-        diagnosisSet.add(RULES.high_blood_pressure.conditionName);
-    }
+  // 4. בדיקת נתרן
+  if (text.match(/(?:Sodium|Na\s|ןרנת)/i)) {
+      const sodiumMatch = text.match(/(?:Sodium|Na\s|ןרתנ).*?(\d{3})/i);
+      if (sodiumMatch) {
+          const val = parseFloat(sodiumMatch[1]);
+          // סופרים רק אם המספר הגיוני (פחות מ-200) כדי לא לספור רעשים
+          if (val < 200) {
+              findingsCount++;
+              if (val > RULES.high_blood_pressure.threshold && val < RULES.high_blood_pressure.sanityLimit) {
+                  diagnosisSet.add(RULES.high_blood_pressure.conditionName);
+              }
+          }
+      }
   }
 
-  return Array.from(diagnosisSet);
+  return { 
+      diagnosis: Array.from(diagnosisSet), 
+      findingsCount 
+  };
 }
