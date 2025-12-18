@@ -1,3 +1,4 @@
+// controllers/authController.js
 import LoginInfo from '../models/loginInfo.js';
 import bcrypt from 'bcryptjs';
 
@@ -5,17 +6,15 @@ export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // בדיקת כפילויות לפי username או email
+    // בדיקת כפילויות
     const exists = await LoginInfo.findOne({ $or: [{ email }, { username }] });
     if (exists) return res.status(400).json({ success: false, message: "User already exists" });
 
-    // hash לסיסמה
-    const hashed = await bcrypt.hash(password, 10);
-
+    // יצירת משתמש (ה-Hook במודל יצפין את הסיסמה)
     await LoginInfo.create({
       username,
       email,
-      password: hashed
+      password
     });
 
     res.json({ success: true, message: "User registered" });
@@ -33,10 +32,15 @@ export const login = async (req, res) => {
   }
 
   try {
-    // חיפוש משתמש לפי username
     const user = await LoginInfo.findOne({ username: username.toLowerCase().trim() });
+    
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
+    }
+    
+    // אם למשתמש אין סיסמה (נרשם דרך גוגל)
+    if (!user.password) {
+       return res.status(400).json({ success: false, message: 'Please use Google Login' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);

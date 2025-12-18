@@ -1,12 +1,14 @@
 import express from 'express';
 import { register, login } from '../contollers/authController.js';
+import { googleLogin } from '../contollers/socialAuthController.js';
 
 const router = express.Router();
 
-// רישום משתמש – יצירת רשומה בקולקציית login_info
+// נתיבים רגילים
 router.post('/register', register);
-
-// התחברות משתמש
 router.post('/login', login);
+
+// נתיב גוגל
+router.post('/google', googleLogin);
 
 export default router;
