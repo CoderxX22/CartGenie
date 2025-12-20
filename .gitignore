@@ -1,3 +1,4 @@
 node_modules
 CartGenie_Backend/.env
 CartGenie_Backend/node_modules/
+CartGenie/.env

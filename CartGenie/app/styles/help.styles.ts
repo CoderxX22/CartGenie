@@ -7,7 +7,7 @@ export const createHelpStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: c.background,
     padding: 20,
   },
-  
+
   // Header
   header: {
     alignItems: 'center',
@@ -29,7 +29,7 @@ export const createHelpStyles = (c: AppColors) => StyleSheet.create({
     lineHeight: 22,
   },
 
-  // Card Generic Style
+  // Card
   card: {
     backgroundColor: c.card,
     borderRadius: 16,
@@ -90,6 +90,97 @@ export const createHelpStyles = (c: AppColors) => StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 16,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    padding: 18,
+    justifyContent: 'center',
+  },
+  modalCard: {
+    backgroundColor: c.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: c.inputBorder,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: c.text,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: c.subtitle,
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  modalInput: {
+    width: '100%',
+    backgroundColor: c.inputBg,
+    borderWidth: 1,
+    borderColor: c.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: c.text,
+    fontSize: 15,
+  },
+  modalDescHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  counterText: {
+    fontSize: 12,
+    color: c.subtitle,
+  },
+  modalTextarea: {
+    width: '100%',
+    minHeight: 120,
+    backgroundColor: c.inputBg,
+    borderWidth: 1,
+    borderColor: c.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: c.text,
+    fontSize: 15,
+  },
+  sendBtn: {
+    marginTop: 14,
+    backgroundColor: c.accent || '#0096c7',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  sendBtnText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 16,
   },
 });
