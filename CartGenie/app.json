@@ -4,24 +4,31 @@
     "slug": "CartGenie",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icon.png",
     "scheme": "cartgenie",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "CartGenie uses the camera to scan receipts.",
         "NSPhotoLibraryUsageDescription": "CartGenie needs access to your photos so you can upload receipt images.",
         "NSPhotoLibraryAddUsageDescription": "CartGenie can save processed images to your library if you choose."
-      }},
+      }
+    },
     "android": {
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.nirfroi.cartgenie"
     },
     "web": {
       "bundler": "metro",
@@ -29,21 +36,18 @@
       "favicon": "./assets/images/favicon.png"
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "https://<subdomain>.ngrok-free.app"
+      "EXPO_PUBLIC_API_URL": "https://<subdomain>.ngrok-free.app",
+      "router": {},
+      "eas": {
+        "projectId": "267e9936-c657-4996-9b63-8488b2b6d92f"
+      }
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
+      "expo-splash-screen",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true
