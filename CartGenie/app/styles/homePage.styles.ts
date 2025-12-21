@@ -8,7 +8,6 @@ export const createHomeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 24,
-    backgroundColor: c.background,
   },
   card: {
     width: '100%',

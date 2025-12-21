@@ -16,7 +16,7 @@ export default function LoginScreen() {
     username, setUsername,
     password, setPassword,
     isLoading, isDisabled,
-    handleLogin, handleGoogleLogin, handleForgotPassword
+    handleLogin, handleGoogleLogin
   } = useLoginLogic();
 
   return (
@@ -91,14 +91,11 @@ export default function LoginScreen() {
 
           {/* Forgot Password — as a Link (navigational), not a Touchable */}
           <Link href={'/forgotPassword' as Href} asChild>
-            <Text
-              style={styles.footerText}
-              onPress={() => {
-                if (!isLoading) handleForgotPassword(); // Optional side-effect (e.g., analytics / toast)
-              }}
-            >
-              Forgot Password?
-            </Text>
+            <TouchableOpacity activeOpacity={0.7}>
+              <Text style={[styles.footerText,styles.linkText]}>
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
           </Link>
 
           {/* Sign Up — only "Sign Up" is clickable */}

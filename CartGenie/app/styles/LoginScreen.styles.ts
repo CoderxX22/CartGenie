@@ -107,7 +107,14 @@ export const createAuthStyles = (c: AppColors) => StyleSheet.create({
     fontWeight: '600',
     color: c.text,
   },
-  
+  subtitle: {
+    fontSize: 14,
+    color: c.text, // או צבע אפור אם יש לך (למשל c.gray או פשוט '#6b7280')
+    textAlign: 'center',
+    marginBottom: 20,
+    marginTop: -10, // אופציונלי: כדי לקרב לכותרת
+    opacity: 0.7,
+  },
   // --- קישורים וטקסט תחתון ---
   footerText: {
     fontSize: 14,

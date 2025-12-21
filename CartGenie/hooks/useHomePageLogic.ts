@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -12,6 +12,11 @@ const DAYS_IN_YEAR = 365;
 export const useHomePageLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  // --- חילוץ בטוח של ה-username ---
+  // אנחנו מוודאים שזה מחרוזת ולא מערך (למקרה של שגיאת פרמטרים נדירה)
+  const rawUsername = params.username;
+  const username = Array.isArray(rawUsername) ? rawUsername[0] : rawUsername;
 
   // State
   const [lastBloodTest, setLastBloodTest] = useState<Date | null>(null);
@@ -39,12 +44,10 @@ export const useHomePageLogic = () => {
     loadBloodDate();
   }, []);
 
-  // One-time Tip Generation
   const tip = useMemo(() => getRandomTip(), []);
 
-  // Derived Data (Params Parsing)
+  // Derived Data
   const firstName = params.firstName as string | undefined;
-  const username = params.username as string | undefined;
   const greetingName = firstName || username || 'there';
 
   const personalCompleted = !!(params.firstName && params.lastName && params.birthDate && params.sex);
@@ -70,9 +73,23 @@ export const useHomePageLogic = () => {
   // Actions
   const toggleMenu = (visible: boolean) => setMenuVisible(visible);
 
+  // --- הפונקציה המתוקנת ---
   const onUpdateInfo = () => {
     setMenuVisible(false);
-    router.push({ pathname: '/bodyMeasures', params: { username } });
+
+    // 1. הגנה מפני מצב שבו היוזר חסר
+    if (!username) {
+      Alert.alert("Error", "Missing user information. Please login again.");
+      console.error("onUpdateInfo failed: username is undefined in HomePage params");
+      return;
+    }
+
+    router.push({ 
+      pathname: '/bodyMeasures',
+      params: { 
+        username: username
+      } 
+    });
   };
 
   const onHelp = () => {

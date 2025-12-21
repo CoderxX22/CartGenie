@@ -10,15 +10,15 @@ import productsRouter from './src/routes/productRoute.js';
 import bloodTestRouter from './src/routes/bloodTestRoute.js';
 import ocrRouter from './src/routes/ocrRoute.js';
 import aiRoute from './src/routes/aiRoute.js';
+import passRestRoute from './src/routes/passRestRoute.js';
 
 // 👇 הייבוא החדש (History)
-import historyRouter from './src/routes/historyRoute.js'; 
+import historyRouter from './src/routes/HistoryRoute.js'; 
 
 const app = express();
 
 app.use(cors({ origin: true }));
 app.use(express.json());
-
 // מניעת אזהרות ngrok (רלוונטי לפיתוח)
 app.use((req, res, next) => {
     res.setHeader('ngrok-skip-browser-warning', 'true'); 
@@ -30,6 +30,7 @@ app.get('/health', (req, res) => res.json({ ok: true, message: "Server is runnin
 
 // 2. חיבור הראוטרים לנתיבים
 app.use('/api/auth', authRouter);
+app.use('/api/passRest', passRestRoute);
 app.use('/api/products', productsRouter);
 app.use('/api/userdata', userDataRouter);
 app.use('/api/ocr', ocrRouter);

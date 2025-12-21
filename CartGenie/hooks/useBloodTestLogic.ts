@@ -73,7 +73,6 @@ export const useBloodTestLogic = () => {
       });
 
       const json = await response.json();
-      console.log('📥 Server Response:', json);
 
       if (!json.success) throw new Error(json.message || 'Server error');
 

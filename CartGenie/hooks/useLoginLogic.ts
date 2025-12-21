@@ -163,8 +163,6 @@ export const useLoginLogic = () => {
     }
   };
 
-  const handleForgotPassword = () => Alert.alert('Not implemented', 'Password recovery not available yet.');
-
   return {
     username,
     setUsername,
@@ -173,7 +171,6 @@ export const useLoginLogic = () => {
     isLoading,
     handleLogin,
     handleGoogleLogin,
-    handleForgotPassword,
     isDisabled: isLoading || !username.trim() || !password.trim() // שים לב: זה משפיע רק על כפתור הלוגין הרגיל
   };
 };

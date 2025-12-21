@@ -1,17 +1,16 @@
 import express from 'express';
 import multer from 'multer';
-import BloodTest from '../models/BloodTest.js'; // ייבוא המודל שיצרנו למעלה
-import { analyzeBloodTestImage } from '../agents/bloodTestAgent.js'; // וודא שהנתיב נכון לקובץ הניתוח שלך!
+import BloodTest from '../models/BloodTest.js';
+import { analyzeBloodTestImage } from '../agents/bloodTestAgent.js';
 
 const router = express.Router();
 
-// הגדרת Multer לשמירת הקובץ בזיכרון (RAM) לצורך עיבוד מהיר ללא שמירה בדיסק
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
  * POST /api/blood-test/analyze
- * מקבל קובץ + שם משתמש -> מנתח -> שומר ב-DB -> מחזיר תוצאה
+ * מוחק בדיקות קודמות של המשתמש -> מנתח חדש -> שומר
  */
 router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
   try {
@@ -20,7 +19,7 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    // 2. קבלת שם המשתמש (מהקוד שהוספת ב-React Native)
+    // 2. קבלת שם המשתמש
     const { username } = req.body;
     if (!username) {
       return res.status(400).json({ success: false, message: 'Username is required' });
@@ -28,11 +27,16 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
 
     console.log(`🧬 Processing blood test for user: ${username}`);
 
-    // 3. ביצוע הניתוח (הפונקציה הקיימת שלך)
+    // 3. ביצוע הניתוח
     const analysisResult = await analyzeBloodTestImage(req.file.buffer, req.file.mimetype);
 
-    // 4. שמירה ב-MongoDB
-    // אנחנו שומרים גם אם לא נמצאו מחלות, כדי שיהיה תיעוד שהבדיקה בוצעה
+    // --- שינוי כאן: מחיקת היסטוריה ישנה ---
+    // 3.5 מחיקת כל הרשומות הקיימות עבור המשתמש הזה לפני השמירה
+    await BloodTest.deleteMany({ username: username });
+    console.log(`🗑️ Deleted old blood test records for ${username}`);
+    // -------------------------------------
+
+    // 4. שמירה ב-MongoDB (כעת זו תהיה הרשומה היחידה של המשתמש)
     const newRecord = new BloodTest({
       username: username,
       diagnosis: analysisResult.diagnosis,
@@ -41,14 +45,14 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
     });
 
     await newRecord.save();
-    console.log(`✅ Saved diagnosis for ${username} to MongoDB`);
+    console.log(`✅ Saved NEW diagnosis for ${username} to MongoDB`);
 
     // 5. החזרת תשובה לקליינט
     res.json({
       success: true,
       data: {
         diagnosis: analysisResult.diagnosis,
-        recordId: newRecord._id // מחזירים מזהה למקרה הצורך
+        recordId: newRecord._id
       }
     });
 
@@ -61,12 +65,13 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
   }
 });
 
-// אופציונלי: נתיב לשליפת היסטוריה למשתמש
+// שליפת הבדיקה האחרונה (והיחידה)
 router.get('/history/:username', async (req, res) => {
     try {
         const { username } = req.params;
-        const history = await BloodTest.find({ username }).sort({ createdAt: -1 });
-        res.json({ success: true, data: history });
+        // מכיוון שיש רק אחת, אפשר להשתמש ב-findOne
+        const record = await BloodTest.findOne({ username });
+        res.json({ success: true, data: record ? [record] : [] });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
