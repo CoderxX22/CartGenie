@@ -1,7 +1,5 @@
 import axios from 'axios';
 import { API_URL } from '@/src/config/api'; 
-// API_URL = הכתובת הבסיסית של השרת (למשל http://10.0.0.5:4000)
-
 export const authService = {
   /**
    * שלב 1: בדיקת התאמה

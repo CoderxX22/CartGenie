@@ -54,8 +54,6 @@ export const useIllnessesScreenLogic = () => {
         illnesses: illnessesList,
         otherIllnesses: otherText,
       };
-
-      console.log('💾 Saving profile...');
       
       // 1. שמירה בשרת
       await UserDataService.saveUserProfile(payload);

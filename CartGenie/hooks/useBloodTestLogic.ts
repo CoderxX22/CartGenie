@@ -60,7 +60,6 @@ export const useBloodTestLogic = () => {
         type: fileType, // ✅ תיקון 1: סוג קובץ דינמי ונכון
       });
 
-      console.log('📤 Uploading file:', file.name, fileType);
 
       const response = await fetch(`${API_URL}/api/blood-test/analyze`, {
         method: 'POST',

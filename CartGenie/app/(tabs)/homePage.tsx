@@ -75,7 +75,6 @@ export default function HomePage() {
                 bodyMeasuresCompleted={status.bodyMeasuresCompleted}
                 hasAnyIllnesses={status.hasAnyIllnesses}
                 illnessesLoading={status.illnessesLoading}
-                bloodStatus={status.bloodStatus as any}
                 colors={col}
             />
 

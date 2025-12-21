@@ -94,7 +94,6 @@ export const usePersonalDetailsLogic = () => {
         sex,
       };
 
-      console.log('Payload Preview:', payload);
       await new Promise(r => setTimeout(r, 700));
 
       router.push({

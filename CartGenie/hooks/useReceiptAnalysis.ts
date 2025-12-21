@@ -20,7 +20,6 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
         throw new Error("You must be logged in to save history.");
       }
 
-      console.log('💾 Saving receipt...');
       
       // חישוב סטטיסטיקות לשמירה
       const safeCount = aiResult.analyzedItems.filter(i => i.recommendation === 'SAFE').length;
@@ -40,7 +39,6 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
       });
 
       setIsSaved(true);
-      console.log('✅ Receipt saved.');
     } catch (error: any) {
       console.error('❌ Failed to save:', error);
       throw error; // זורק שגיאה כדי שה-UI יציג Alert

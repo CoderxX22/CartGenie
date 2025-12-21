@@ -86,8 +86,6 @@ export const analyzeFoodSafety = async (userProfile, productData) => {
 
     // ניקוי סימני Markdown לפני ה-Parse
     responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    console.log(`🤖 AI Analysis Complete (${isCart ? 'Cart' : 'Single'}).`);
     
     return JSON.parse(responseText);
 

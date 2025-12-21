@@ -9,12 +9,11 @@ interface StatusCardProps {
   bodyMeasuresCompleted: boolean;
   hasAnyIllnesses: boolean;
   illnessesLoading: boolean;
-  bloodStatus: { icon: string; text: string; color: string };
   colors: AppColors;
 }
 
 export const StatusCard = ({ 
-  personalCompleted, bodyMeasuresCompleted, hasAnyIllnesses, illnessesLoading, bloodStatus, colors 
+  personalCompleted, bodyMeasuresCompleted, hasAnyIllnesses, illnessesLoading, colors 
 }: StatusCardProps) => {
   const styles = createHomeStyles(colors);
 
@@ -39,12 +38,6 @@ export const StatusCard = ({
       <StatusRow completed={personalCompleted} textTrue="Personal info completed" textFalse="Personal info missing" />
       <StatusRow completed={bodyMeasuresCompleted} textTrue="Body measures completed" textFalse="Body measures missing" />
       
-      {/* Blood Status is special */}
-      <View style={styles.statusRow}>
-        <Ionicons name={bloodStatus.icon as any} size={18} color={bloodStatus.color} />
-        <Text style={[styles.statusText, { color: bloodStatus.color }]}>{bloodStatus.text}</Text>
-      </View>
-
       <StatusRow 
         completed={hasAnyIllnesses} 
         loading={illnessesLoading} 

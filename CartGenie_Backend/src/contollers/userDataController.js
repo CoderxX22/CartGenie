@@ -1,5 +1,5 @@
 import UserData from '../models/userData.js';
-
+import BloodTest from '../models/BloodTest.js';
 /**
  * שמירת נתוני משתמש חדש או עדכון נתונים קיימים (לוגיקה מתוקנת)
  * POST /api/userdata/save
@@ -30,7 +30,6 @@ export const saveUserData = async (req, res) => {
 
     // --- תרחיש א': עדכון משתמש קיים (Update) ---
     if (userDataDoc) {
-      console.log(`🔄 Updating existing user: ${normalizedUsername}`);
 
       // עדכון שדות רק אם הם נשלחו ב-Body (בדיקה שאינם undefined)
       
@@ -80,8 +79,6 @@ export const saveUserData = async (req, res) => {
 
     // --- תרחיש ב': יצירת משתמש חדש (Create) ---
     else {
-      console.log(`🆕 Creating new user: ${normalizedUsername}`);
-
       const requiredFields = ['firstName', 'lastName', 'birthDate', 'sex', 'weight', 'height', 'waist', 'bmi'];
       const missing = requiredFields.filter(field => !req.body[field]);
 
@@ -147,18 +144,37 @@ export const saveUserData = async (req, res) => {
  * קבלת נתוני משתמש לפי username
  * GET /api/userdata/:username
  */
+
 export const getUserData = async (req, res) => {
   try {
     const { username } = req.params;
-    if (!username) return res.status(400).json({ success: false, message: 'Username is required' });
 
-    const userData = await UserData.findOne({ username: username.toLowerCase().trim() });
-    if (!userData) return res.status(404).json({ success: false, message: 'User data not found' });
+    // 1. שליפת פרטי המשתמש
+    const user = await UserData.findOne({ 
+        username: { $regex: new RegExp(`^${username}$`, 'i') } 
+    });
 
-    res.json({ success: true, data: userData });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // 2. --- התוספת החשובה: בדיקה האם קיימות בדיקות דם ---
+    const bloodTestCount = await BloodTest.countDocuments({ 
+        username: { $regex: new RegExp(`^${username}$`, 'i') } 
+    });
+
+    // 3. החזרת הנתונים המשולבים
+    res.json({
+      success: true,
+      data: {
+        ...user.toObject(), // המרת המשתמש לאובייקט רגיל
+        hasBloodTests: bloodTestCount > 0 // מחזיר true אם נמצאה לפחות בדיקה אחת
+      }
+    });
+
   } catch (error) {
-    console.error('Error fetching user data:', error);
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    console.error('Error getting user data:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -189,6 +205,7 @@ export const updateBloodTest = async (req, res) => {
  * מחיקת נתוני משתמש (הפונקציה שהייתה חסרה לך)
  * DELETE /api/userdata/:username
  */
+
 export const deleteUserData = async (req, res) => {
   try {
     const { username } = req.params;

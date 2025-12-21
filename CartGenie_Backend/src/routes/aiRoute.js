@@ -9,22 +9,16 @@ const router = express.Router();
 // ---------------------------------------------------------
 // ROUTE 1: Single Product Analysis (Scan Barcode)
 // ---------------------------------------------------------
-router.post('/consult', async (req, res) => {
-  console.log('\n--- 🚀 AI Request (Single Product) ---');
-  
+router.post('/consult', async (req, res) => {  
   try {
     let { username, product } = req.body;
     const cleanUsername = username ? username.trim().toLowerCase() : 'guest';
     
-    console.log(`🔎 Searching for user: "${cleanUsername}"`);
-
     if (!product) {
       return res.status(400).json({ success: false, message: 'Missing product data' });
     }
 
     const profileForAI = await getUserProfileForAI(cleanUsername);
-
-    console.log('📤 Sending to AI Agent (Single Mode)...');
     // 👇 שימוש בפונקציה המאוחדת
     const analysisResult = await analyzeFoodSafety(profileForAI, product);
 
@@ -40,21 +34,15 @@ router.post('/consult', async (req, res) => {
 // ROUTE 2: Cart Analysis (Scan Receipt)
 // ---------------------------------------------------------
 router.post('/consult-cart', async (req, res) => {
-  console.log('\n--- 🛒 AI Request (Full Cart) ---');
-
   try {
     let { username, products } = req.body; // products = array of strings
     const cleanUsername = username ? username.trim().toLowerCase() : 'guest';
-
-    console.log(`🔎 Cart analysis for user: "${cleanUsername}", Items count: ${products?.length}`);
 
     if (!products || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ success: false, message: 'Missing products list' });
     }
 
     const profileForAI = await getUserProfileForAI(cleanUsername);
-
-    console.log('📤 Sending to AI Agent (Cart Mode)...');
     
     // 👇 התיקון כאן: שימוש באותה פונקציה גם לסל הקניות!
     // הסוכן יזהה לבד שזה מערך ויחזיר את הציון (Score) והרשימה

@@ -1,10 +1,10 @@
-// hooks/useLoginLogic.ts
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin'; // <--- הוספה
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { API_URL } from '../src/config/api';
+import { saveUserLocal } from '../utils/userDataManger'; 
 
 export const useLoginLogic = () => {
   const router = useRouter();
@@ -19,7 +19,7 @@ export const useLoginLogic = () => {
     return () => sub.remove();
   }, []);
 
-  // <--- הוספה: הגדרת גוגל (החלף את המחרוזת ב-Client ID האמיתי שלך)
+  // הגדרת גוגל
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: '853411236325-qmdu42qrcq7qoiaq0cmu240j2jm2uamb.apps.googleusercontent.com', 
@@ -27,6 +27,7 @@ export const useLoginLogic = () => {
     });
   }, []);
 
+  // --- לוגין רגיל ---
   const handleLogin = useCallback(async () => {
     const cleanUsername = username.trim().toLowerCase();
     const cleanPassword = password.trim();
@@ -40,7 +41,6 @@ export const useLoginLogic = () => {
     setIsLoading(true);
 
     try {
-      // 1. Auth Request
       const loginRes = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,8 +55,6 @@ export const useLoginLogic = () => {
         return;
       }
 
-      // --- המשך הלוגיקה זהה למה שיקרה בגוגל, לכן זה משוכפל למטה ---
-      // 2. User Data Request
       await fetchUserDataAndNavigate(cleanUsername);
 
     } catch (e) {
@@ -68,26 +66,18 @@ export const useLoginLogic = () => {
   }, [username, password, isLoading, router]);
 
 
-  // <--- הוספה: הפונקציה החדשה להתחברות עם גוגל
+  // --- לוגין עם גוגל ---
   const handleGoogleLogin = async () => {
     if (isLoading) return;
     setIsLoading(true);
 
     try {
       await GoogleSignin.hasPlayServices();
-      
-      // 1. ביצוע ההתחברות
       const response = await GoogleSignin.signIn();
-      
-      // התיקון: בגרסה החדשה הנתונים נמצאים בתוך 'data'
-      // אנחנו מוודאים ש-'data' קיים לפני שניגשים ל-'idToken'
       const token = response.data?.idToken;
 
-      if (!token) {
-        throw new Error('Failed to get ID token from Google');
-      }
+      if (!token) throw new Error('Failed to get ID token from Google');
 
-      // 2. שליחת הטוקן לשרת שלך
       const res = await fetch(`${API_URL}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,19 +91,13 @@ export const useLoginLogic = () => {
         return;
       }
 
-      // קבלת ה-username מהשרת
-      const googleUsername = data.username;
-
-      // 3. משיכת נתונים וניווט
-      await fetchUserDataAndNavigate(googleUsername);
+      await fetchUserDataAndNavigate(data.username);
 
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('User cancelled the login flow');
+        console.log('User cancelled');
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        console.log('Operation is in progress already');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('Error', 'Google Play Services not available');
+        console.log('In progress');
       } else {
         console.error('Google Login Error:', error);
         Alert.alert('Error', 'An error occurred during Google Sign-In');
@@ -123,38 +107,56 @@ export const useLoginLogic = () => {
     }
   };
 
-  // <--- הוספה: פונקציית עזר למניעת שכפול קוד (משמשת גם את Login וגם את Google)
+  // --- פונקציית העזר המרכזית ---
   const fetchUserDataAndNavigate = async (userToFetch: string) => {
     try {
-      // שמירה לוקאלית
       await AsyncStorage.setItem('loggedInUser', userToFetch);
 
       const userDataRes = await fetch(`${API_URL}/api/userdata/${userToFetch}`);
       
       if (userDataRes.status === 200) {
         const json = await userDataRes.json();
-        const userData = json.data;
+        const serverData = json.data; 
 
-        // הכנת הנתונים (Data Transformation)
-        const allUserParams = {
+        // יצירת האובייקט - הוספנו את hasBloodTests
+        const formattedUser = {
             username: userToFetch,
-            firstName: userData.personalDetails?.firstName || '',
-            lastName: userData.personalDetails?.lastName || '',
-            birthDate: userData.personalDetails?.birthDate || '',
-            ageYears: userData.personalDetails?.age?.toString() || '',
-            sex: userData.personalDetails?.sex || '',
-            weight: userData.bodyMeasurements?.weight?.toString() || '',
-            height: userData.bodyMeasurements?.height?.toString() || '',
-            waist: userData.bodyMeasurements?.waist?.toString() || '',
-            bmi: userData.bodyMeasurements?.bmi?.toString() || '',
-            whtr: userData.bodyMeasurements?.whtr?.toString() || '',
-            illnesses: JSON.stringify(userData.medicalData?.illnesses?.map((i: any) => i.name) || []),
-            otherIllnesses: userData.medicalData?.otherIllnesses || '',
+            firstName: serverData.personalDetails?.firstName || '',
+            lastName: serverData.personalDetails?.lastName || '',
+            birthDate: serverData.personalDetails?.birthDate || '',
+            sex: serverData.personalDetails?.sex || '',
+            
+            ageYears: serverData.personalDetails?.age?.toString() || '',
+            weight: serverData.bodyMeasurements?.weight?.toString() || '',
+            height: serverData.bodyMeasurements?.height?.toString() || '',
+            waist: serverData.bodyMeasurements?.waist?.toString() || '',
+            bmi: serverData.bodyMeasurements?.bmi?.toString() || '',
+            whtr: serverData.bodyMeasurements?.whtr?.toString() || '',
+            
+            illnesses: serverData.medicalData?.illnesses || [], 
+            otherIllnesses: serverData.medicalData?.otherIllnesses || '',
+
+            // --- השדה החדש ---
+            // השרת צריך להחזיר hasBloodTests: true/false
+            // אם השרת לא מחזיר כלום, ברירת המחדל תהיה false
+            hasBloodTests: !!serverData.hasBloodTests 
         };
 
-        router.replace({ pathname: '/(tabs)/homePage', params: allUserParams });
+        // 1. שמירה לקובץ המקומי
+        await saveUserLocal(formattedUser);
+        // 2. ניווט לדף הבית
+        router.replace({ 
+            pathname: '/(tabs)/homePage', 
+            params: { 
+                ...formattedUser,
+                illnesses: JSON.stringify(formattedUser.illnesses),
+                // חשוב: אם הראוטר הופך הכל למחרוזות, אולי תצטרך להפוך גם את זה ל-string
+                // אבל אם homePage קורא מהקובץ המקומי, זה פחות קריטי כאן
+                hasBloodTests: formattedUser.hasBloodTests ? 'true' : 'false' 
+            } 
+        });
+
       } else {
-        // מקרה קצה: משתמש קיים ללא דאטה (או משתמש גוגל חדש שצריך להשלים פרטים)
         router.replace({ pathname: '/personalDetails', params: { username: userToFetch } });
       }
     } catch (e) {
@@ -171,6 +173,6 @@ export const useLoginLogic = () => {
     isLoading,
     handleLogin,
     handleGoogleLogin,
-    isDisabled: isLoading || !username.trim() || !password.trim() // שים לב: זה משפיע רק על כפתור הלוגין הרגיל
+    isDisabled: isLoading || !username.trim() || !password.trim()
   };
 };

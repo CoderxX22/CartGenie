@@ -70,7 +70,6 @@ export const useBodyMeasuresLogic = () => {
         whtr: whtr?.toFixed(3) || '',
       };
       
-      console.log('BodyMeasures Payload:', payload);
       await new Promise(r => setTimeout(r, 500)); // Simulaton
 
       router.push({ pathname: '/bloodTestUploadScreen', params: payload });

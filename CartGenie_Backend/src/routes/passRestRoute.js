@@ -14,8 +14,6 @@ router.post('/verify-identity', async (req, res) => {
     username = username ? username.trim() : ''; 
     email = email ? email.trim() : '';
 
-    console.log(`🔍 [Verify Start] Input Username: '${username}' | Input Email: '${email}'`);
-
     // תיקון: שימוש ב-LoginInfo במקום ב-User
     const user = await LoginInfo.findOne({ 
         username: { $regex: new RegExp(`^${username}$`, 'i') } 
@@ -26,8 +24,6 @@ router.post('/verify-identity', async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    console.log(`✅ [Verify Found] User found. DB Email is: '${user.email}'`);
-
     const dbEmailClean = user.email.trim().toLowerCase();
     const inputEmailClean = email.toLowerCase();
 
@@ -36,7 +32,6 @@ router.post('/verify-identity', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email does not match our records.' });
     }
 
-    console.log(`✅ [Verify Success] Identity verified for '${username}'.`);
     res.json({ success: true, message: 'Identity verified.' });
 
   } catch (error) {
@@ -52,8 +47,6 @@ router.post('/reset-password', async (req, res) => {
   try {
     let { username, newPassword } = req.body;
     username = username ? username.trim() : '';
-
-    console.log(`🔄 [Reset Password] Attempt for user: '${username}'`);
 
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 chars.' });
@@ -74,7 +67,6 @@ router.post('/reset-password', async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found during update.' });
     }
 
-    console.log(`✅ [Reset Success] Password updated for '${username}'.`);
     res.json({ success: true, message: 'Password updated successfully.' });
 
   } catch (error) {

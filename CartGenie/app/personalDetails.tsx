@@ -4,14 +4,14 @@ import {
   View, Text, TouchableOpacity, Modal, ActivityIndicator, Platform, Keyboard
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAppColors } from '@/components/appThemeProvider';
+// וודא ש-Sex מיובא מכאן
 import { usePersonalDetailsLogic, Sex } from '../hooks/usePersonalDetailsLogic';
 import { createPersonalDetailsStyles } from '../app/styles/personalDetails.styles';
-import { InputField } from '../components/InputField'; // הקיים
-import { SelectField } from '../components/SelectField'; // החדש שיצרנו
+import { InputField } from '../components/InputField';
+import { SelectField } from '../components/SelectField';
 
 const ACCENT = '#0096c7';
 
@@ -42,12 +42,13 @@ export default function PersonalDetails() {
             label="First Name"
             placeholder="Enter your first name"
             value={form.firstName}
-            onChangeText={(t) => { setters.setFirstName(t); if(errors.firstName) actions.validate(); }} // simple clear error logic inside hook is better usually
+            onChangeText={(t) => { setters.setFirstName(t); if(errors.firstName) actions.validate(); }}
             colors={col}
             autoCapitalize="words"
             returnKeyType="next"
             error={errors.firstName}
-            onFocus={() => { ui.setShowAgePicker(false); ui.setShowSexPicker(false); }}
+            // הסרנו את ui.setShowSexPicker מכאן כי המודל בוטל
+            onFocus={() => { ui.setShowAgePicker(false); }}
           />
 
           <InputField
@@ -59,7 +60,7 @@ export default function PersonalDetails() {
             autoCapitalize="words"
             returnKeyType="next"
             error={errors.lastName}
-            onFocus={() => { ui.setShowAgePicker(false); ui.setShowSexPicker(false); }}
+            onFocus={() => { ui.setShowAgePicker(false); }}
           />
 
           {/* Date Selector */}
@@ -67,25 +68,66 @@ export default function PersonalDetails() {
             label="Birth Date"
             placeholder="Select your birth date"
             value={helpers.formatDate(form.birthDate)}
-            onPress={() => { Keyboard.dismiss(); ui.setShowSexPicker(false); ui.setShowAgePicker(true); }}
+            onPress={() => { Keyboard.dismiss(); ui.setShowAgePicker(true); }}
             iconName="calendar-outline"
             colors={col}
             error={errors.birthDate}
             helperText={form.ageYears ? `Calculated age: ${form.ageYears}` : undefined}
           />
 
-          {/* Sex Selector */}
-          <SelectField
-            label="Sex"
-            placeholder="Select sex"
-            value={form.sex ? form.sex.charAt(0).toUpperCase() + form.sex.slice(1) : ''}
-            onPress={actions.openSexPicker}
-            iconName="chevron-down"
-            colors={col}
-            error={errors.sex}
-          />
+          {/* --- Sex Selector (Fixed & Updated) --- */}
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ 
+                marginBottom: 8, 
+                fontWeight: '600', 
+                color: col.text,
+                marginLeft: 4 
+            }}>Sex</Text>
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {['Male', 'Female','Other'].map((option) => {
+                // תיקון 1: המרה מפורשת לטיפוס Sex
+                const value = option.toLowerCase() as Sex; 
+                const isSelected = form.sex === value;
+                
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    onPress={() => setters.setSex(value)}
+                    activeOpacity={0.7}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      backgroundColor: isSelected ? ACCENT : 'transparent',
+                      borderWidth: 1,
+                      // תיקון 2: שימוש בצבע אפור קבוע במקום col.border החסר
+                      borderColor: isSelected ? ACCENT : '#ccc', 
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ 
+                      color: isSelected ? '#FFF' : col.text,
+                      fontWeight: isSelected ? '700' : '400',
+                      fontSize: 16
+                    }}>
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            
+            {errors.sex && (
+                <Text style={{ color: 'red', fontSize: 12, marginTop: 6, marginLeft: 4 }}>
+                    {errors.sex}
+                </Text>
+            )}
+          </View>
+          {/* --- End of Sex Selector --- */}
 
-          {/* Continue Button (Reusing styles from auth base) */}
+          {/* Continue Button */}
           <TouchableOpacity
             style={[styles.primaryButton, isDisabled && { opacity: 0.5 }]}
             onPress={actions.onContinue}
@@ -117,7 +159,7 @@ export default function PersonalDetails() {
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={actions.onAgeChange}
               maximumDate={new Date()}
-              textColor={col.text} // Important for Dark Mode on iOS
+              textColor={col.text}
             />
             {Platform.OS === 'ios' && (
               <TouchableOpacity style={styles.modalButton} onPress={() => ui.setShowAgePicker(false)}>
@@ -128,26 +170,6 @@ export default function PersonalDetails() {
         </View>
       </Modal>
 
-      {/* Sex Picker Modal */}
-      <Modal visible={ui.showSexPicker} transparent animationType="slide" onRequestClose={() => ui.setShowSexPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHandle} />
-            <Picker
-              selectedValue={ui.tempSex}
-              onValueChange={(val) => setters.setTempSex(val as Sex)}
-              itemStyle={{ color: col.text }} // Important for iOS Dark Mode
-            >
-              <Picker.Item label="Select Sex" value="" />
-              <Picker.Item label="Male" value="male" />
-              <Picker.Item label="Female" value="female" />
-            </Picker>
-            <TouchableOpacity style={styles.modalButton} onPress={actions.confirmSexSelection}>
-              <Text style={styles.modalButtonText}>Choose</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </>
   );
 }

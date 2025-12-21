@@ -45,13 +45,11 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     if (!fileBuffer || fileBuffer.length === 0) {
         throw new Error("❌ Error: Received empty file buffer.");
     }
-    console.log(`🔍 Analyzing file. Size: ${fileBuffer.length} bytes`);
 
     let extractedText = "";
 
     // --- נסיון ראשון: קריאה מהירה (pdf-parse) ---
     if (mimeType === 'application/pdf') {
-      console.log('📄 Attempting fast PDF parsing...');
       try {
           const data = await pdf(fileBuffer);
           extractedText = data.text;
@@ -61,9 +59,7 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     } 
 
     // --- נסיון שני: גיבוי OCR ---
-    if (mimeType.startsWith('image/') || extractedText.trim().length < 20) {
-      console.log('⚠️ Text layer empty/invalid. Switching to OCR...');
-      
+    if (mimeType.startsWith('image/') || extractedText.trim().length < 20) {      
       if (mimeType === 'application/pdf') {
           const tempFileName = `temp_${Date.now()}.pdf`;
           tempPdfPath = path.join(os.tmpdir(), tempFileName);
@@ -78,9 +74,7 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
             height: 2000
           };
 
-          const convert = fromPath(tempPdfPath, options);
-          console.log('🔄 Converting PDF pages to images...');
-          
+          const convert = fromPath(tempPdfPath, options);          
           for (let page = 1; page <= 3; page++) {
             try {
                 const result = await convert(page, { responseType: "image" });
@@ -89,7 +83,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
           }
       } 
 
-      console.log(`📷 Running Tesseract on ${generatedImages.length} images...`);
       for (const imgPath of generatedImages) {
           const imgBuffer = fs.readFileSync(imgPath);
           const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb');
@@ -99,7 +92,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
 
     // --- שלב ג: ניתוח הטקסט ---
     const cleanText = extractedText.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
-    console.log(`📝 Final Extracted Text (Preview): "${cleanText.substring(0, 150)}..."`);
     
     if (cleanText.length < 10) {
         throw new Error("Could not extract text. File might be empty or unreadable.");
@@ -108,8 +100,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     // 👇 כאן השינוי: קבלת גם האבחון וגם כמות הממצאים
     const { diagnosis, findingsCount } = analyzeTextRules(cleanText);
     
-    console.log(`🩺 Stats: Found ${findingsCount} valid values. Diagnosis: ${diagnosis}`);
-
     // 🔥 בדיקת תקינות: אם לא מצאנו שום ערך מספרי רלוונטי
     if (findingsCount === 0) {
         throw new Error("Could not detect any blood test values (Glucose, LDL, Sodium, etc). Please check the file quality or format.");

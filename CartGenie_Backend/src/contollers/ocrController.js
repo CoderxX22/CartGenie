@@ -18,14 +18,9 @@ export const scanReceipt = async (req, res) => {
 
     const imagePath = req.file.path;
 
-    console.log(`📷 Starting OCR processing for file: ${req.file.originalname}`);
-
     // 2. הרצת Tesseract
     const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
-      // logger: m => console.log(`OCR Progress: ${m.status} (${Math.round(m.progress * 100)}%)`)
     });
-
-    console.log('✅ OCR Completed');
 
     // 3. מחיקת הקובץ הזמני מהשרת (ניקוי)
     fs.unlink(imagePath, (err) => {

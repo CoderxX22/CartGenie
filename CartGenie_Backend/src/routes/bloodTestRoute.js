@@ -25,7 +25,6 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Username is required' });
     }
 
-    console.log(`🧬 Processing blood test for user: ${username}`);
 
     // 3. ביצוע הניתוח
     const analysisResult = await analyzeBloodTestImage(req.file.buffer, req.file.mimetype);
@@ -33,7 +32,6 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
     // --- שינוי כאן: מחיקת היסטוריה ישנה ---
     // 3.5 מחיקת כל הרשומות הקיימות עבור המשתמש הזה לפני השמירה
     await BloodTest.deleteMany({ username: username });
-    console.log(`🗑️ Deleted old blood test records for ${username}`);
     // -------------------------------------
 
     // 4. שמירה ב-MongoDB (כעת זו תהיה הרשומה היחידה של המשתמש)
@@ -45,8 +43,6 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
     });
 
     await newRecord.save();
-    console.log(`✅ Saved NEW diagnosis for ${username} to MongoDB`);
-
     // 5. החזרת תשובה לקליינט
     res.json({
       success: true,

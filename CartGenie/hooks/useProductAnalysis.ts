@@ -28,7 +28,6 @@ export const useProductAnalysis = (barcode?: string) => {
           aiReason: aiData.reason
         })
       });
-      console.log('✅ History saved.');
     } catch (err) {
       console.error('❌ Failed to save history:', err);
     }
@@ -75,7 +74,6 @@ export const useProductAnalysis = (barcode?: string) => {
         const savedUsername = await AsyncStorage.getItem('loggedInUser');
         const currentUser = savedUsername || 'guest';
 
-        console.log(`👤 Analyzing "${foundProduct.name}" for: ${currentUser}`);
         const analysis = await consultAiAgent(foundProduct, currentUser);
 
         setAiResult(analysis);

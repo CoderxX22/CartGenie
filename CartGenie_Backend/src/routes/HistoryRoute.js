@@ -11,7 +11,6 @@ const router = express.Router();
 // הוספת קבלה (חייב להיות לפני ה-GET הכללי)
 router.post('/receipts/add', async (req, res) => {
     try {
-      console.log('📝 Saving receipt...');
       const { username, storeName, totalPrice, currency, itemCount, healthSummary } = req.body;
       
       const newReceipt = new ReceiptHistory({
@@ -30,7 +29,6 @@ router.post('/receipts/add', async (req, res) => {
 router.get('/receipts/:username', async (req, res) => {
     try {
       const { username } = req.params;
-      console.log(`📥 Fetching receipts for user: ${username}`);
       
       const receipts = await ReceiptHistory.find({ username })
         .sort({ scanDate: -1 })
@@ -93,9 +91,7 @@ router.delete('/:id', async (req, res) => {
 // ⚠️ זה חייב להיות הנתיב האחרון ברשימת ה-GET!
 router.get('/:username', async (req, res) => {
   try {
-    const { username } = req.params;
-    console.log(`📥 Fetching products for user: ${username}`);
-    
+    const { username } = req.params;    
     const history = await ScanHistory.find({ username })
       .sort({ scannedAt: -1 })
       .limit(50);
