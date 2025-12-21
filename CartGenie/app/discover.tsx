@@ -14,7 +14,7 @@ export default function Discover() {
   const col = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createDiscoverStyles(col), [col]);
-  
+
   const { state, setters, actions } = useDiscoverLogic();
   const { mode, query, filteredProducts } = state;
 
@@ -26,18 +26,33 @@ export default function Discover() {
           headerBackVisible: false,
           gestureEnabled: false,
           headerLeft: () => (
-            <TouchableOpacity onPress={actions.goHome} style={{ paddingHorizontal: 12 }}>
-              <Ionicons name="home-outline" size={22} color={col.text} />
+            <TouchableOpacity
+              onPress={actions.goHome}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="home-outline" size={18} color={col.text} />
+              <Text style={{ color: col.text, fontSize: 16, fontWeight: '600' }}>Home</Text>
             </TouchableOpacity>
           ),
         }}
       />
-      
+
       <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 72 }]}>
         <ScrollView contentContainerStyle={styles.container}>
-          
           {/* Header */}
-          <Ionicons name="compass-outline" size={46} color={col.text} style={{ alignSelf: 'center', marginBottom: 4 }} />
+          <Ionicons
+            name="compass-outline"
+            size={46}
+            color={col.text}
+            style={{ alignSelf: 'center', marginBottom: 4 }}
+          />
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.subtitle}>
             Explore products, health facts, and nutrition news tailored to your conditions.
@@ -53,14 +68,17 @@ export default function Discover() {
                   style={[styles.modeBtn, active && styles.modeBtnActive]}
                   onPress={() => setters.setMode(m.id)}
                 >
-                  <Ionicons name={m.icon} size={16} color={active ? '#0F172A' : col.subtitle} style={{ marginRight: 4 }} />
+                  <Ionicons
+                    name={m.icon}
+                    size={16}
+                    color={active ? '#0F172A' : col.subtitle}
+                    style={{ marginRight: 4 }}
+                  />
                   <Text style={[styles.modeText, active && styles.modeTextActive]}>{m.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-
-          {/* --- CONTENT RENDER --- */}
 
           {/* Products Mode */}
           {mode === 'products' && (
@@ -78,12 +96,7 @@ export default function Discover() {
 
               <View style={styles.list}>
                 {filteredProducts.map((item) => (
-                  <ProductCard 
-                    key={item.id} 
-                    item={item} 
-                    isSuitable={actions.isSuitable(item)} 
-                    colors={col} 
-                  />
+                  <ProductCard key={item.id} item={item} isSuitable={actions.isSuitable(item)} colors={col} />
                 ))}
                 {filteredProducts.length === 0 && <EmptyState colors={col} />}
               </View>
@@ -107,7 +120,6 @@ export default function Discover() {
               ))}
             </View>
           )}
-
         </ScrollView>
       </View>
     </>
