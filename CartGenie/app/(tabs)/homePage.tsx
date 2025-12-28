@@ -1,10 +1,19 @@
 import React, { useMemo } from 'react';
-// 1. הוספנו את ImageBackground כאן
-import { View, Text, ScrollView, TouchableOpacity, ImageBackground, useColorScheme, StyleSheet } from 'react-native';import { Stack } from 'expo-router';
+import { 
+  View, 
+  Text, 
+  ScrollView, 
+  TouchableOpacity, 
+  ImageBackground, 
+  useColorScheme, 
+  StyleSheet,
+  ViewStyle 
+} from 'react-native';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import Navbar from '@/components/navBar';
-import { useAppColors } from '@/components/appThemeProvider';
+import { useAppColors, AppColors } from '@/components/appThemeProvider';
 import { useHomePageLogic } from '../../hooks/useHomePageLogic';
 import { createHomeStyles } from '../styles/homePage.styles';
 
@@ -12,6 +21,8 @@ import { createHomeStyles } from '../styles/homePage.styles';
 import { SideMenu } from '../../components/home/SideMenu';
 import { QuickAction } from '../../components/home/QuickAction';
 import { StatusCard } from '../../components/home/statusCard';
+
+const BACKGROUND_IMAGE = require('../../assets/images/Home_page_background_pic.png');
 
 export default function HomePage() {
   const col = useAppColors();
@@ -26,9 +37,16 @@ export default function HomePage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Home', headerShown: false, gestureEnabled: false, headerLeft: () => null }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Home', 
+          headerShown: false, 
+          gestureEnabled: false, 
+          headerLeft: () => null 
+        }} 
+      />
 
-      {/* Side Menu Component */}
+      {/* Side Menu Overlay */}
       <SideMenu 
         visible={menuVisible} 
         onClose={() => actions.toggleMenu(false)}
@@ -37,39 +55,30 @@ export default function HomePage() {
         onLogout={actions.onLogout}
         colors={col}
       />
+
       <ImageBackground 
-        source={require('../../assets/images/Home_page_background_pic.png')} 
-        style={{ flex: 1 }}
+        source={BACKGROUND_IMAGE} 
+        style={localStyles.background}
         resizeMode="cover"
       >
-        {isDark && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.65)' }]} />
-        )}
+        {/* Dark Mode Overlay for readability */}
+        {isDark && <View style={localStyles.darkOverlay} />}
 
         <ScrollView 
-            contentContainerStyle={[styles.container, { paddingBottom: 96 }]} 
+            contentContainerStyle={[styles.container, localStyles.scrollContent]} 
             keyboardShouldPersistTaps="handled"
         >
             <View style={styles.card}>
             
-            {/* Header */}
-            <View style={styles.logoRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                <View style={styles.logoCircle}>
-                    <Ionicons name="cart-outline" size={20} color="#fff" />
-                    <Ionicons name="sparkles-outline" size={16} color="#FFEDD5" style={{ position: 'absolute', right: -4, top: -2 }} />
-                </View>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.title}>Hi, {greetingName}!</Text>
-                    <Text style={styles.subtitle}>Let&apos;s make your cart healthier.</Text>
-                </View>
-                </View>
-                <TouchableOpacity style={styles.menuButton} onPress={() => actions.toggleMenu(true)}>
-                <Ionicons name="menu" size={28} color={col.text} />
-                </TouchableOpacity>
-            </View>
+            {/* Header Section */}
+            <HomeHeader 
+                greeting={greetingName} 
+                onMenuPress={() => actions.toggleMenu(true)} 
+                styles={styles} 
+                colors={col} 
+            />
 
-            {/* Status Card Component */}
+            {/* Status Card */}
             <StatusCard 
                 personalCompleted={status.personalCompleted}
                 bodyMeasuresCompleted={status.bodyMeasuresCompleted}
@@ -80,6 +89,7 @@ export default function HomePage() {
 
             {/* Quick Actions */}
             <Text style={styles.sectionTitle}>Quick actions</Text>
+            
             <QuickAction 
                 title="Scan receipt"
                 subtitle="Upload or scan grocery receipt."
@@ -88,6 +98,7 @@ export default function HomePage() {
                 colors={col}
                 isPrimary
             />
+            
             <QuickAction 
                 title="Scan product"
                 subtitle="Check single product details."
@@ -97,15 +108,7 @@ export default function HomePage() {
             />
 
             {/* Daily Tip */}
-            <View style={styles.tip}>
-                <View style={styles.tipIconCircle}>
-                <Ionicons name="bulb-outline" size={18} color="#facc15" />
-                </View>
-                <View style={{ flex: 1 }}>
-                <Text style={styles.tipLabel}>Today’s tip</Text>
-                <Text style={styles.tipText}>{tip}</Text>
-                </View>
-            </View>
+            <DailyTipCard tip={tip} styles={styles} />
 
             </View>
         </ScrollView>
@@ -115,3 +118,78 @@ export default function HomePage() {
     </>
   );
 }
+
+// --- Sub-Components ---
+
+interface HomeHeaderProps {
+  greeting: string;
+  onMenuPress: () => void;
+  styles: any;
+  colors: AppColors;
+}
+
+const HomeHeader = ({ greeting, onMenuPress, styles, colors }: HomeHeaderProps) => (
+  <View style={styles.logoRow}>
+    <View style={localStyles.headerLeftContainer}>
+      <View style={styles.logoCircle}>
+        <Ionicons name="cart-outline" size={20} color="#fff" />
+        <Ionicons 
+            name="sparkles-outline" 
+            size={16} 
+            color="#FFEDD5" 
+            style={localStyles.sparkleIcon} 
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>Hi, {greeting}!</Text>
+        <Text style={styles.subtitle}>Let&apos;s make your cart healthier.</Text>
+      </View>
+    </View>
+    
+    <TouchableOpacity 
+        style={styles.menuButton} 
+        onPress={onMenuPress}
+        activeOpacity={0.7}
+    >
+      <Ionicons name="menu" size={28} color={colors.text} />
+    </TouchableOpacity>
+  </View>
+);
+
+const DailyTipCard = ({ tip, styles }: { tip: string, styles: any }) => (
+  <View style={styles.tip}>
+    <View style={styles.tipIconCircle}>
+      <Ionicons name="bulb-outline" size={18} color="#facc15" />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.tipLabel}>Today’s tip</Text>
+      <Text style={styles.tipText}>{tip}</Text>
+    </View>
+  </View>
+);
+
+// --- Local Styles ---
+
+const localStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  darkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  scrollContent: {
+    paddingBottom: 96, // Space for Navbar
+  },
+  headerLeftContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    flex: 1
+  },
+  sparkleIcon: {
+    position: 'absolute', 
+    right: -4, 
+    top: -2 
+  }
+});

@@ -1,26 +1,33 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { View, Text } from 'react-native';
 import { AppColors } from '@/components/appThemeProvider';
 import { createReceiptStyles } from '../../app/styles/receiptResults.styles';
 
-export const ScoreCard = ({ score, colors }: { score: number; colors: AppColors }) => {
-  const styles = createReceiptStyles(colors);
+interface ScoreCardProps {
+  score: number;
+  colors: AppColors;
+}
 
-  const getScoreColor = (s: number) => {
-    if (s >= 80) return '#10B981'; 
-    if (s >= 50) return '#F59E0B'; 
-    return '#EF4444'; 
-  };
+export const ScoreCard = memo(({ score, colors }: ScoreCardProps) => {
+  // Memoize styles to avoid recreation on every render
+  const styles = useMemo(() => createReceiptStyles(colors), [colors]);
 
-  const color = getScoreColor(score);
+  // Determine color based on score thresholds
+  const scoreColor = 
+    score >= 80 ? '#10B981' : // Green
+    score >= 50 ? '#F59E0B' : // Orange
+    '#EF4444';                // Red
 
   return (
     <View style={styles.scoreCard}>
       <Text style={styles.scoreTitle}>Cart Health Score</Text>
-      <View style={[styles.scoreCircle, { borderColor: color + '30' }]}>
-        <Text style={[styles.scoreNumber, { color: color }]}>{score}</Text>
+      
+      {/* Score Circle with transparent border matching the score color */}
+      <View style={[styles.scoreCircle, { borderColor: scoreColor + '30' }]}>
+        <Text style={[styles.scoreNumber, { color: scoreColor }]}>{score}</Text>
       </View>
+      
       <Text style={styles.scoreSubtitle}>Based on your health profile</Text>
     </View>
   );
-};
+});

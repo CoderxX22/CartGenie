@@ -1,6 +1,14 @@
 import React, { useMemo } from 'react';
 import { Stack, Link, Href } from 'expo-router';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAppColors } from '@/components/appThemeProvider';
@@ -13,100 +21,118 @@ export default function LoginScreen() {
   const styles = useMemo(() => createAuthStyles(col), [col]);
 
   const {
-    username, setUsername,
-    password, setPassword,
-    isLoading, isDisabled,
-    handleLogin, handleGoogleLogin
+    username,
+    setUsername,
+    password,
+    setPassword,
+    isLoading,
+    isDisabled,
+    handleLogin,
+    handleGoogleLogin
   } = useLoginLogic();
 
   return (
     <>
+      {/* Hide header and prevent swipe back on login to ensure auth flow */}
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
 
-      <View style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Welcome To CartGenie</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={styles.container}>
+            <View style={styles.card}>
+              <Text style={styles.title}>Welcome To CartGenie</Text>
 
-          {/* Username */}
-          <InputField
-            label="Username"
-            colors={col}
-            placeholder="Enter your username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            editable={!isLoading}
-            returnKeyType="next"
-          />
+              {/* Username Input */}
+              <InputField
+                label="Username"
+                colors={col}
+                placeholder="Enter your username"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                editable={!isLoading}
+                returnKeyType="next"
+              />
 
-          {/* Password */}
-          <InputField
-            label="Password"
-            colors={col}
-            placeholder="Enter your password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            editable={!isLoading}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-          />
+              {/* Password Input */}
+              <InputField
+                label="Password"
+                colors={col}
+                placeholder="Enter your password"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                editable={!isLoading}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.primaryButton, isDisabled && { opacity: 0.5 }]}
-            onPress={handleLogin}
-            activeOpacity={0.9}
-            disabled={isDisabled}
-          >
-            {isLoading ? (
-              <>
-                <ActivityIndicator size="small" color="#fff" />
-                <Text style={styles.primaryButtonText}>Signing in…</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.primaryButtonText}>Login</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
-              </>
-            )}
-          </TouchableOpacity>
+              {/* Primary Login Button */}
+              <TouchableOpacity
+                style={[styles.primaryButton, isDisabled && { opacity: 0.5 }]}
+                onPress={handleLogin}
+                activeOpacity={0.9}
+                disabled={isDisabled}
+              >
+                {isLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.primaryButtonText}>Signing in…</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>Login</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+                  </>
+                )}
+              </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.divider} />
+              {/* Divider */}
+              <View style={styles.dividerRow}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.divider} />
+              </View>
+
+              {/* Google Social Login */}
+              <TouchableOpacity
+                style={[styles.googleButton, isLoading && { opacity: 0.6 }]}
+                activeOpacity={0.9}
+                disabled={isLoading}
+                onPress={handleGoogleLogin}
+              >
+                <Ionicons name="logo-google" size={20} color={col.text} />
+                <Text style={styles.googleButtonText}>Connect via Google</Text>
+              </TouchableOpacity>
+
+              {/* Footer Links */}
+              <View style={{ marginTop: 20, gap: 12, alignItems: 'center' }}>
+                
+                {/* Forgot Password */}
+                <Link href={'/forgotPassword' as Href} asChild>
+                  <TouchableOpacity activeOpacity={0.7}>
+                    <Text style={[styles.footerText, styles.linkText]}>
+                      Forgot Password?
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
+
+                {/* Sign Up Navigation */}
+                <Text style={styles.footerText}>
+                  Don’t have an account?{' '}
+                  <Link href={'/signUpScreen' as Href} asChild>
+                    <Text style={styles.linkText}>Sign Up</Text>
+                  </Link>
+                </Text>
+              </View>
+
+            </View>
           </View>
-
-          {/* Google Button */}
-          <TouchableOpacity
-            style={[styles.googleButton, isLoading && { opacity: 0.6 }]}
-            activeOpacity={0.9}
-            disabled={isLoading}
-            onPress={handleGoogleLogin}
-          >
-            <Ionicons name="logo-google" size={20} color={col.text} />
-            <Text style={styles.googleButtonText}>Connect via Google</Text>
-          </TouchableOpacity>
-
-          {/* Forgot Password — as a Link (navigational), not a Touchable */}
-          <Link href={'/forgotPassword' as Href} asChild>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={[styles.footerText,styles.linkText]}>
-                Forgot Password?
-              </Text>
-            </TouchableOpacity>
-          </Link>
-
-          {/* Sign Up — only "Sign Up" is clickable */}
-          <Text style={[styles.footerText, { marginTop: 8 }]}>
-            Don’t have an account?{' '}
-            <Link href={'/signUpScreen' as Href} asChild>
-              <Text style={styles.linkText}>Sign Up</Text>
-            </Link>
-          </Text>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </>
   );
 }

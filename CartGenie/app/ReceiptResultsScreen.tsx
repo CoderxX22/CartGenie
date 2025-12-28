@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useAppColors } from '@/components/appThemeProvider';
+import { useAppColors, AppColors } from '@/components/appThemeProvider';
 import { useReceiptAnalysis } from '../hooks/useReceiptAnalysis';
 import { createReceiptStyles } from './styles/receiptResults.styles';
 
@@ -15,13 +15,17 @@ import { LoadingView, ErrorView } from '../components/receipt/ReceiptStates';
 export default function ReceiptResultsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-
   const col = useAppColors();
   const styles = useMemo(() => createReceiptStyles(col), [col]);
 
-  // Hook Logic
-  const { state, actions } = useReceiptAnalysis(params.extractedItems as string);
+  // Ensure params are handled safely (Expo params can be string or string[])
+  const rawItems = params.extractedItems;
+  const itemsStr = Array.isArray(rawItems) ? rawItems[0] : rawItems;
+
+  const { state, actions } = useReceiptAnalysis(itemsStr as string);
   const { aiResult, loadingStep, errorMsg, isSaved } = state;
+
+  // --- Actions ---
 
   const handleSave = async () => {
     try {
@@ -32,24 +36,14 @@ export default function ReceiptResultsScreen() {
     }
   };
 
-  const showScoreInfo = () => {
-    // Adjust these ranges anytime without touching UI layout
-    Alert.alert(
-      'Cart Health Score',
-      [
-        'How to read the score (0–100):',
-        '',
-        '0–39  → Needs improvement',
-        '40–59 → Fair / mixed cart',
-        '60–79 → Good choices',
-        '80–100 → Excellent (very healthy cart)',
-        '',
-        'Tip: A higher score usually means more SAFE items and fewer AVOID items.'
-      ].join('\n')
-    );
+  const handleDone = () => {
+    // Replace prevents the user from going "Back" to this result screen from Home
+    router.replace('/(tabs)/homePage');
   };
 
-  // 1) Loading state
+  // --- Render States ---
+
+  // 1. Loading
   if (loadingStep !== 'IDLE') {
     return (
       <>
@@ -59,17 +53,21 @@ export default function ReceiptResultsScreen() {
     );
   }
 
-  // 2) Error state
+  // 2. Error or Missing Data
   if (errorMsg || !aiResult) {
     return (
       <>
         <Stack.Screen options={{ title: 'Analysis Failed' }} />
-        <ErrorView error={errorMsg!} onRetry={() => router.back()} colors={col} />
+        <ErrorView 
+          error={errorMsg ?? 'Unknown error occurred'} 
+          onRetry={() => router.back()} 
+          colors={col} 
+        />
       </>
     );
   }
 
-  // 3) Success state
+  // 3. Success
   const { healthMatchScore, analyzedItems } = aiResult;
 
   return (
@@ -78,24 +76,13 @@ export default function ReceiptResultsScreen() {
 
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Score card with an info icon to explain the score ranges */}
-          <View style={styles.scoreHeaderRow}>
-            <Text style={styles.scoreHeaderTitle}>Cart Health Score</Text>
-
-            <TouchableOpacity
-              onPress={showScoreInfo}
-              accessibilityRole="button"
-              accessibilityLabel="Cart Health Score information"
-              style={styles.infoBtn}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="information-circle-outline" size={22} color={col.subtitle} />
-            </TouchableOpacity>
-          </View>
+          
+          {/* Header with Info Button */}
+          <ScoreSectionHeader styles={styles} colors={col} />
 
           <ScoreCard score={healthMatchScore} colors={col} />
 
-          {/* Save button styled as a primary button (consistent with other CTAs) */}
+          {/* Save Button */}
           <TouchableOpacity
             style={[styles.saveBtn, isSaved && styles.saveBtnDisabled]}
             onPress={handleSave}
@@ -103,9 +90,12 @@ export default function ReceiptResultsScreen() {
             activeOpacity={0.9}
           >
             <Ionicons name={isSaved ? 'checkmark' : 'save-outline'} size={20} color="#fff" />
-            <Text style={styles.saveBtnText}>{isSaved ? 'Saved to History' : 'Save to History'}</Text>
+            <Text style={styles.saveBtnText}>
+              {isSaved ? 'Saved to History' : 'Save to History'}
+            </Text>
           </TouchableOpacity>
 
+          {/* Items List */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Analyzed Items ({analyzedItems.length})</Text>
             <View style={styles.itemsList}>
@@ -116,8 +106,13 @@ export default function ReceiptResultsScreen() {
           </View>
         </ScrollView>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.doneBtn} onPress={() => router.push('/(tabs)/homePage')} activeOpacity={0.9}>
+          <TouchableOpacity 
+            style={styles.doneBtn} 
+            onPress={handleDone} 
+            activeOpacity={0.9}
+          >
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -125,3 +120,36 @@ export default function ReceiptResultsScreen() {
     </>
   );
 }
+
+// --- Sub-Components ---
+
+const ScoreSectionHeader = ({ styles, colors }: { styles: any, colors: AppColors }) => {
+  const showScoreInfo = () => {
+    Alert.alert(
+      'Cart Health Score',
+      `How to read the score (0–100):
+
+0–39  → Needs improvement
+40–59 → Fair / mixed cart
+60–79 → Good choices
+80–100 → Excellent (very healthy cart)
+
+Tip: A higher score usually means more SAFE items and fewer AVOID items.`
+    );
+  };
+
+  return (
+    <View style={styles.scoreHeaderRow}>
+      <Text style={styles.scoreHeaderTitle}>Cart Health Score</Text>
+      <TouchableOpacity
+        onPress={showScoreInfo}
+        accessibilityRole="button"
+        accessibilityLabel="Cart Health Score information"
+        style={styles.infoBtn}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="information-circle-outline" size={22} color={colors.subtitle} />
+      </TouchableOpacity>
+    </View>
+  );
+};

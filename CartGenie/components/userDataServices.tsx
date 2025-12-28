@@ -1,6 +1,5 @@
 import { API_URL } from '../src/config/api';
 
-// שיניתי ל-Partial כדי לאפשר שליחה של חלק מהשדות (למשל רק משקל)
 export interface UserProfilePayload {
   username?: string;
   firstName?: string;

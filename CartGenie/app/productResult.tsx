@@ -5,8 +5,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppColors } from '@/components/appThemeProvider';
 import { useProductAnalysis } from '../hooks/useProductAnalysis';
 import { createProductResultStyles } from './styles/productResult.styles';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react'; // וודא שיש לך גם את אלו
+
 // DRY Components
 import { AiAnalysisCard } from '../components/productResult/AiAnalysisCard';
 import { ProductMiniCard } from '../components/productResult/ProductMiniCard';
@@ -21,6 +20,18 @@ export default function ProductResultScreen() {
   // Hook handles logic
   const { state } = useProductAnalysis(barcode);
   const { product, aiResult, loadingStep, errorMsg } = state;
+
+  // --- Actions ---
+
+  const handleDone = () => {
+    router.replace('/(tabs)/homePage');
+  };
+
+  const handleScanAgain = () => {
+    router.replace('/scanProduct');
+  };
+
+  // --- Render States ---
 
   // 1. Loading State
   if (loadingStep !== 'IDLE') {
@@ -38,10 +49,11 @@ export default function ProductResultScreen() {
       <>
         <Stack.Screen options={{ title: 'Unknown Product' }} />
         <ErrorView 
-          error={errorMsg} 
+          // FIX: Convert 'null' to 'undefined' to satisfy TypeScript
+          error={errorMsg ?? undefined} 
           barcode={barcode} 
-          onRetry={() => router.replace('/scanProduct')} 
-          onDone={() => router.push('/(tabs)/homePage')}
+          onRetry={handleScanAgain} 
+          onDone={handleDone}
           colors={col} 
         />
       </>
@@ -55,30 +67,36 @@ export default function ProductResultScreen() {
 
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         
-        {/* Product Info */}
+        {/* Product Info Header */}
         <ProductMiniCard product={product} colors={col} />
 
-        {/* AI Result Card */}
+        {/* AI Analysis Result */}
         {aiResult && <AiAnalysisCard result={aiResult} colors={col} />}
 
-        {/* Scan Another Button */}
-        <TouchableOpacity style={styles.actionBtn} onPress={() => router.replace('/scanProduct')} activeOpacity={0.9}>
+        {/* Secondary Action: Scan Another */}
+        <TouchableOpacity 
+          style={styles.actionBtn} 
+          onPress={handleScanAgain} 
+          activeOpacity={0.9}
+        >
           <Text style={styles.actionBtnText}>Scan Another Item</Text>
         </TouchableOpacity>
 
-        {/* Nutrition Facts */}
+        {/* Nutrition Facts Footer */}
         <View style={styles.nutritionContainer}>
           <Text style={styles.sectionTitle}>Product Facts (100g)</Text>
           <Text style={styles.factsText}>
-            Calories: {product.nutrients?.calories ?? '-'} • Sugar: {product.nutrients?.sugar ?? '-'}g • Sodium: {product.nutrients?.sodium ?? '-'}mg
+            Calories: {product.nutrients?.calories ?? '-'} • 
+            Sugar: {product.nutrients?.sugar ?? '-'}g • 
+            Sodium: {product.nutrients?.sodium ?? '-'}mg
           </Text>
         </View>
 
       </ScrollView>
       
-      {/* Footer */}
+      {/* Sticky Bottom Footer */}
       <View style={styles.footer}>
-          <TouchableOpacity style={styles.doneBtn} onPress={() => router.push('/(tabs)/homePage')}>
+          <TouchableOpacity style={styles.doneBtn} onPress={handleDone} activeOpacity={0.9}>
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
       </View>

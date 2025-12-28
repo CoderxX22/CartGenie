@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '@/components/appThemeProvider';
@@ -9,17 +9,23 @@ interface HomeBackButtonProps {
   color?: string;
 }
 
-export const HomeBackButton = ({ onPress, color }: HomeBackButtonProps) => {
+export const HomeBackButton = memo(({ onPress, color }: HomeBackButtonProps) => {
   const col = useAppColors();
   const styles = useMemo(() => createScanScreenStyles(col), [col]);
-  const iconColor = color || col.accent || '#0096c7';
+
+  // Determine effective color (Prop -> Theme -> Default)
+  const effectiveColor = color || col.accent || '#0096c7';
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.headerButton}>
-      <Ionicons name="chevron-back" size={22} color={iconColor} />
-      <Text style={[styles.headerButtonText, { color: iconColor }]}>
+    <TouchableOpacity 
+      onPress={onPress} 
+      style={styles.headerButton}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="chevron-back" size={24} color={effectiveColor} />
+      <Text style={[styles.headerButtonText, { color: effectiveColor }]}>
         Home
       </Text>
     </TouchableOpacity>
   );
-};
+});

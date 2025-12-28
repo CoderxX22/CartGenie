@@ -1,26 +1,29 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useAppColors } from '@/components/appThemeProvider';
+import { useAppColors, AppColors } from '@/components/appThemeProvider';
 import { useScanReceiptLogic } from '../hooks/useScanReceiptLogic';
 import { createScanReceiptStyles } from './styles/scanReceipt.styles';
 import { ReceiptPreview } from '../components/scanReceipt/ReceiptPreview';
 
 export default function ScanReceiptScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const col = useAppColors();
   const styles = useMemo(() => createScanReceiptStyles(col), [col]);
 
   const { state, actions } = useScanReceiptLogic();
   const { file, loading } = state;
 
+  // Type-safe navigation logic
   const goHome = () => {
-    // Prefer back navigation to preserve existing Home params/state when possible
-    const canGoBack = (router as any).canGoBack?.() ?? false;
-    if (canGoBack) router.back();
-    else router.replace('/(tabs)/homePage');
+    if (navigation.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/homePage');
+    }
   };
 
   return (
@@ -28,9 +31,7 @@ export default function ScanReceiptScreen() {
       <Stack.Screen
         options={{
           title: 'Scan Receipt',
-          // Disable default back button (stack-based) to avoid inconsistent behavior
           headerBackVisible: false,
-          // Always show a deterministic "Home" action
           headerLeft: () => (
             <TouchableOpacity
               onPress={goHome}
@@ -40,54 +41,48 @@ export default function ScanReceiptScreen() {
               <Ionicons name="home-outline" size={18} color={col.text} />
               <Text style={{ color: col.text, fontSize: 16, fontWeight: '600' }}>Home</Text>
             </TouchableOpacity>
-          )
+          ),
         }}
       />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Preview area for the selected receipt (image) */}
+        {/* Receipt Preview Component */}
         <ReceiptPreview imageUri={file?.uri} colors={col} />
 
-        {/* Source buttons: Documents / Gallery / Camera (icon above text) */}
+        {/* Action Buttons Row */}
         <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.secondaryBtn]}
+          <ActionButton
+            label="Documents"
+            icon="document-outline"
             onPress={actions.pickDocument}
-            disabled={loading}
-            activeOpacity={0.9}
-          >
-            <View style={styles.actionBtnContent}>
-              <Ionicons name="document-outline" size={22} color={col.accent} />
-              <Text style={[styles.actionBtnText, { color: col.accent }]}>Documents</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.secondaryBtn]}
+            loading={loading}
+            color={col.accent}
+            styles={styles}
+            variant="secondary"
+          />
+          
+          <ActionButton
+            label="Gallery"
+            icon="images-outline"
             onPress={actions.pickFromLibrary}
-            disabled={loading}
-            activeOpacity={0.9}
-          >
-            <View style={styles.actionBtnContent}>
-              <Ionicons name="images-outline" size={22} color={col.accent} />
-              <Text style={[styles.actionBtnText, { color: col.accent }]}>Gallery</Text>
-            </View>
-          </TouchableOpacity>
+            loading={loading}
+            color={col.accent}
+            styles={styles}
+            variant="secondary"
+          />
 
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.primaryBtn]}
+          <ActionButton
+            label="Camera"
+            icon="camera-outline"
             onPress={actions.takePhoto}
-            disabled={loading}
-            activeOpacity={0.9}
-          >
-            <View style={styles.actionBtnContent}>
-              <Ionicons name="camera-outline" size={22} color="#fff" />
-              <Text style={[styles.actionBtnText, { color: '#fff' }]}>Camera</Text>
-            </View>
-          </TouchableOpacity>
+            loading={loading}
+            color="#fff"
+            styles={styles}
+            variant="primary"
+          />
         </View>
 
-        {/* Show Analyze button only after a file is selected */}
+        {/* Analyze Button (Conditional) */}
         {file && (
           <TouchableOpacity
             style={[styles.scanBtn, loading && { opacity: 0.7 }]}
@@ -107,5 +102,39 @@ export default function ScanReceiptScreen() {
         )}
       </ScrollView>
     </>
+  );
+}
+
+// --- Sub-Components ---
+
+/**
+ * Reusable button for the source selection row
+ * Reduces JSX repetition for Documents/Gallery/Camera buttons
+ */
+interface ActionButtonProps {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  loading: boolean;
+  color: string;
+  styles: any;
+  variant: 'primary' | 'secondary';
+}
+
+function ActionButton({ label, icon, onPress, loading, color, styles, variant }: ActionButtonProps) {
+  const containerStyle = variant === 'primary' ? styles.primaryBtn : styles.secondaryBtn;
+  
+  return (
+    <TouchableOpacity
+      style={[styles.actionBtn, containerStyle]}
+      onPress={onPress}
+      disabled={loading}
+      activeOpacity={0.9}
+    >
+      <View style={styles.actionBtnContent}>
+        <Ionicons name={icon} size={22} color={color} />
+        <Text style={[styles.actionBtnText, { color }]}>{label}</Text>
+      </View>
+    </TouchableOpacity>
   );
 }

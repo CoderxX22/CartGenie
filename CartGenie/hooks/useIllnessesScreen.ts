@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useIllnesses } from '@/hooks/useIllnesses'; // ה-Hook הקיים שלך
+import { useIllnesses } from '@/hooks/useIllnesses';
 import UserDataService from '@/components/userDataServices';
 import { ILLNESSES_LIST } from '../data/illnesses';
 
@@ -12,7 +12,6 @@ export const useIllnessesScreenLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // שימוש ב-Hook הקיים שלך לניהול בחירות
   const {
     selected,
     other,
@@ -44,26 +43,21 @@ export const useIllnessesScreenLogic = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  // פונקציית הליבה לשמירה
   const saveDataAndNavigate = async (illnessesList: string[], otherText: string) => {
     setIsSaving(true);
     try {
-      // הרכבת ה-Payload מתוך הפרמטרים שהתקבלו + המחלות
       const payload: any = {
-        ...params, // מעתיק את כל הנתונים ממסכים קודמים (גובה, משקל וכו')
+        ...params,
         illnesses: illnessesList,
         otherIllnesses: otherText,
       };
       
-      // 1. שמירה בשרת
       await UserDataService.saveUserProfile(payload);
 
-      // 2. שמירה מקומית
       if (payload.username) {
         await AsyncStorage.setItem('loggedInUser', payload.username);
       }
 
-      // 3. ניווט
       router.push({
         pathname: '/(tabs)/homePage',
         params: {
@@ -90,7 +84,7 @@ export const useIllnessesScreenLogic = () => {
           text: 'Confirm & Save',
           onPress: async () => {
             await Haptics.selectionAsync();
-            saveDataAndNavigate([], ''); // שולח רשימה ריקה
+            saveDataAndNavigate([], '');
           },
         },
       ]

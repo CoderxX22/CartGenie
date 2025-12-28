@@ -1,25 +1,19 @@
 import React from 'react';
 import { Stack } from 'expo-router';
+
 import { useAppColors } from '@/components/appThemeProvider';
-import ScanProduct from '@/components/ScanProduct';
 import { useScanProductLogic } from '@/hooks/useScanProductLogic';
+import ScanProduct from '@/components/ScanProduct';
 import { HomeBackButton } from '@/components/scanProduct/HomeBackButton';
 
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react'; // וודא שיש לך גם את אלו
-
-const ACCENT = '#0096c7';
+const FALLBACK_ACCENT = '#0096c7';
 
 export default function ScanProductScreen() {
   const col = useAppColors();
   const { actions } = useScanProductLogic();
-  const [scanned, setScanned] = useState(false);
-  
-  useFocusEffect(
-    useCallback(() => {
-      setScanned(false); // משחרר את הנעילה
-    }, [])
-  );
+
+  // Determine the active accent color once for consistency
+  const headerTintColor = col.accent ?? FALLBACK_ACCENT;
 
   return (
     <>
@@ -29,17 +23,21 @@ export default function ScanProductScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: col.background },
           headerTitleStyle: { color: col.text },
-          headerTintColor: col.accent ?? ACCENT,
+          headerTintColor: headerTintColor,
           headerShadowVisible: false,
           headerLeft: () => (
             <HomeBackButton 
               onPress={actions.goHome} 
-              color={col.accent ?? ACCENT} 
+              color={headerTintColor} 
             />
           ),
         }}
       />
 
+      {/* Pass the completion handler from the logic hook.
+        If you need to handle reset logic, it should likely be done inside ScanProduct 
+        or via a ref/key, but local state here was unused.
+      */}
       <ScanProduct onComplete={actions.onScanComplete} />
     </>
   );

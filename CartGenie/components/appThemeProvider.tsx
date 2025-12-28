@@ -44,7 +44,6 @@ const DarkColors: AppColors = {
 const ColorsCtx = createContext<AppColors>(LightColors);
 export const useAppColors = () => useContext(ColorsCtx);
 
-// אופציונלי: יצירת סטיילים דינמיים בקלות
 export function useThemedStyles<T>(factory: (c: AppColors) => T) {
   const c = useAppColors();
   return useMemo(() => factory(c), [c]);
