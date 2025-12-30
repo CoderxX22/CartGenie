@@ -11,7 +11,7 @@ import { ILLNESSES_LIST } from '../data/illnesses';
 export const useIllnessesScreenLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+  console.log(params);
   const {
     selected,
     other,
@@ -44,19 +44,31 @@ export const useIllnessesScreenLogic = () => {
   };
 
   const saveDataAndNavigate = async (illnessesList: string[], otherText: string) => {
+    // 1. בדיקת תקינות - האם קיבלנו בכלל שם משתמש?
+    const currentUsername = params.username;
+    
+    if (!currentUsername) {
+      console.error("❌ Missing username in params:", params);
+      Alert.alert('Error', 'User data is missing. Please go back and register again.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload: any = {
-        ...params,
+        ...params, // מעתיק את הגובה, משקל, וכו'
+        username: currentUsername, // מוודאים שהשם נכנס
         illnesses: illnessesList,
         otherIllnesses: otherText,
       };
       
+      console.log("Payload to save:", payload); // לוג לניפוי באגים
+
+      // שימוש ב-Service המתוקן (שים לב לסוגריים המסולסלים ב-import למעלה)
       await UserDataService.saveUserProfile(payload);
 
-      if (payload.username) {
-        await AsyncStorage.setItem('loggedInUser', payload.username);
-      }
+      // שמירה באחסון המקומי
+      await AsyncStorage.setItem('loggedInUser', currentUsername as string);
 
       router.push({
         pathname: '/(tabs)/homePage',

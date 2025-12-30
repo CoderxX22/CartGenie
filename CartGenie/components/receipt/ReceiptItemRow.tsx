@@ -7,17 +7,47 @@ import { AnalyzedItem } from '../../data/receiptTypes';
 
 // --- Configuration ---
 
-interface StatusConfig {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  bg: string;
-}
+const isDarkMode = (colors: AppColors) => {
+  return colors.text === '#ffffff' || colors.text === '#F8FAFC' || colors.background === '#000000';
+};
 
-const STATUS_MAP: Record<string, StatusConfig> = {
-  SAFE:    { icon: 'checkmark-circle', color: '#10B981', bg: '#ECFDF5' },
-  CAUTION: { icon: 'warning',          color: '#F59E0B', bg: '#FFFBEB' },
-  AVOID:   { icon: 'alert-circle',     color: '#EF4444', bg: '#FEF2F2' },
-  DEFAULT: { icon: 'help-circle',      color: '#64748B', bg: '#F1F5F9' },
+const getStatusTheme = (status: string, isDark: boolean) => {
+  const baseColors = {
+    SAFE:    '#10B981', // Green
+    CAUTION: '#F59E0B', // Amber
+    AVOID:   '#EF4444', // Red
+    DEFAULT: '#64748B', // Slate
+  };
+
+  const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+    SAFE: 'checkmark-circle',
+    CAUTION: 'warning',
+    AVOID: 'alert-circle',
+    DEFAULT: 'help-circle',
+  };
+
+  const color = baseColors[status as keyof typeof baseColors] || baseColors.DEFAULT;
+  const icon = icons[status as keyof typeof icons] || icons.DEFAULT;
+
+  let bg;
+  if (isDark) {
+    switch (status) {
+      case 'SAFE':    bg = 'rgba(16, 185, 129, 0.15)'; break;
+      case 'CAUTION': bg = 'rgba(245, 158, 11, 0.15)'; break;
+      case 'AVOID':   bg = 'rgba(239, 68, 68, 0.15)';  break;
+      default:        bg = 'rgba(100, 116, 139, 0.2)';
+    }
+  } else {
+    // צבעים מקוריים למצב אור
+    switch (status) {
+      case 'SAFE':    bg = '#ECFDF5'; break;
+      case 'CAUTION': bg = '#FFFBEB'; break;
+      case 'AVOID':   bg = '#FEF2F2'; break;
+      default:        bg = '#F1F5F9';
+    }
+  }
+
+  return { color, bg, icon };
 };
 
 // --- Main Component ---
@@ -28,32 +58,42 @@ interface ReceiptItemRowProps {
 }
 
 export const ReceiptItemRow = memo(({ item, colors }: ReceiptItemRowProps) => {
-  // Memoize styles to avoid recreation on every render
   const styles = useMemo(() => createReceiptStyles(colors), [colors]);
+  
+  const isDark = useMemo(() => isDarkMode(colors), [colors]);
 
-  // Determine visual status
-  const status = STATUS_MAP[item.recommendation] || STATUS_MAP.DEFAULT;
+  const statusTheme = getStatusTheme(item.recommendation, isDark);
 
   return (
-    <View style={[styles.itemRow, { backgroundColor: status.bg, borderColor: status.color + '40' }]}>
+    <View style={[
+      styles.itemRow, 
+      { 
+        backgroundColor: statusTheme.bg, 
+        borderColor: isDark ? statusTheme.color + '80' : statusTheme.color + '40'
+      }
+    ]}>
       
       {/* Header: Name + Icon */}
       <View style={styles.itemHeader}>
-        <Text style={styles.itemName}>{item.productName}</Text>
-        <Ionicons name={status.icon} size={22} color={status.color} />
+        <Text style={[styles.itemName, { color: colors.text }]}>
+          {item.productName}
+        </Text>
+        <Ionicons name={statusTheme.icon} size={22} color={statusTheme.color} />
       </View>
       
       {/* Badge: Recommendation Label */}
       <View style={styles.badgeContainer}>
-        <View style={[styles.badge, { borderColor: status.color }]}>
-          <Text style={[styles.badgeText, { color: status.color }]}>
+        <View style={[styles.badge, { borderColor: statusTheme.color, borderWidth: 1 }]}>
+          <Text style={[styles.badgeText, { color: statusTheme.color, fontWeight: '700' }]}>
             {item.recommendation}
           </Text>
         </View>
       </View>
 
       {/* Footer: Reason */}
-      <Text style={styles.reasonText}>{item.reason}</Text>
+      <Text style={[styles.reasonText, { color: colors.subtitle || colors.text, opacity: 0.9 }]}>
+        {item.reason}
+      </Text>
     </View>
   );
 });

@@ -35,14 +35,12 @@ class UserDataService {
     
     return cleaned;
   }
-
   /**
    * שומר את פרופיל המשתמש המלא (כולל מחלות ונתונים דמוגרפיים)
    * @param payload - אובייקט הנתונים (יכול להיות חלקי)
    */
   static async saveUserProfile(payload: UserProfilePayload): Promise<any> {
     const endpoint = `${API_URL}/api/userdata/save`;
-    
     // 1. ניקוי הנתונים לפני השליחה
     const cleanData = this.cleanPayload(payload);
 

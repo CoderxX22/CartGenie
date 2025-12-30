@@ -37,7 +37,7 @@ export default function ProductResultScreen() {
   if (loadingStep !== 'IDLE') {
     return (
       <>
-        <Stack.Screen options={{ title: 'AI Agent' }} />
+        <Stack.Screen options={{ title: 'Product Assistent' }} />
         <LoadingView step={loadingStep} colors={col} />
       </>
     );
@@ -49,7 +49,6 @@ export default function ProductResultScreen() {
       <>
         <Stack.Screen options={{ title: 'Unknown Product' }} />
         <ErrorView 
-          // FIX: Convert 'null' to 'undefined' to satisfy TypeScript
           error={errorMsg ?? undefined} 
           barcode={barcode} 
           onRetry={handleScanAgain} 
