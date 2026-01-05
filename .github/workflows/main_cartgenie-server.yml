@@ -28,7 +28,7 @@ jobs:
           npm install
           npm run build --if-present
           npm run test --if-present
-        working-directory: ./server
+        working-directory: ./CartGenie_Backend
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -62,4 +62,5 @@ jobs:
         with:
           app-name: 'cartgenie-server'
           slot-name: 'Production'
-          package: ./server      
+          package: ./CartGenie_Backend      
+
