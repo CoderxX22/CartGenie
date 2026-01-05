@@ -28,7 +28,7 @@ jobs:
           npm install
           npm run build --if-present
           npm run test --if-present
-        working-directory: ./CartGenie_Backend
+        working-directory: ./CartGenie_Backend    # <--- תיקון 1: השם הנכון של התיקייה
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -62,5 +62,4 @@ jobs:
         with:
           app-name: 'cartgenie-server'
           slot-name: 'Production'
-          package: ./CartGenie_Backend      
-
+          package: ./CartGenie_Backend            # <--- תיקון 2: השם הנכון של התיקייה
