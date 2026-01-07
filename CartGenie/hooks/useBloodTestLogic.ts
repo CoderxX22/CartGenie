@@ -3,8 +3,8 @@ import { Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { API_URL } from '../src/config/api';
 import UserDataService, { UserProfilePayload } from '../components/userDataServices';
+// 👇 ייבוא ה-Hook הגנרי החדש
 import { useUploadFile } from './useUploadFile'; 
-import PdfThumbnail from "react-native-pdf-thumbnail";
 
 interface AnalysisResult {
   rawText?: string;
@@ -14,12 +14,16 @@ interface AnalysisResult {
 export const useBloodTestLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  // 👇 שימוש ב-Hook הגנרי לבחירת קובץ
   const { file, chooseSource, clearFile } = useUploadFile();
 
+  // State מקומי רק ללוגיקה העסקית (ניתוח ושמירה)
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
 
+  // ברגע שנבחר קובץ חדש, נאפס את תוצאות הניתוח הקודמות
   useEffect(() => {
     if (file) {
       setAnalysisResults(null);
@@ -40,52 +44,27 @@ export const useBloodTestLogic = () => {
 
     try {
       const formData = new FormData();
+      
+      // תיקון נתיב לאנדרואיד
+      const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
+      
+      // זיהוי סוג קובץ נכון - ברירת מחדל ל-PDF אם זה PDF
+      const fileType = file.mimeType || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
       formData.append('username', getStringParam(params.username) || 'Guest');
-
-      let filesToUpload: any[] = [];
-
-      const isPdf = file.mimeType === 'application/pdf' || file.name.endsWith('.pdf');
-
-      if (isPdf) {
-        try {
-          const results = await PdfThumbnail.generateAllPages(file.uri, 90);
-          
-          filesToUpload = results.map((page, index) => ({
-             uri: page.uri,
-             name: `page_${index}.jpg`,
-             type: 'image/jpeg'
-          }));
-          
-          console.log(`Converted PDF to ${filesToUpload.length} images`);
-
-        } catch (conversionError) {
-          console.error("PDF Conversion failed:", conversionError);
-          Alert.alert("Error", "Could not process PDF file. Please try a screenshot instead.");
-          setIsAnalyzing(false);
-          return;
-        }
-
-      } else {
-        const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
-        
-        filesToUpload.push({
-          uri: cleanUri,
-          name: file.name,
-          type: file.mimeType || 'image/jpeg'
-        });
-      }
-
-      filesToUpload.forEach((fileItem) => {
-          // @ts-ignore
-          formData.append('bloodTestFiles', {
-            uri: fileItem.uri,
-            name: fileItem.name,
-            type: fileItem.type,
-          });
+      
+      // @ts-ignore
+      formData.append('bloodTestFile', {
+        uri: cleanUri,
+        name: file.name,
+        type: fileType, // ✅ תיקון 1: סוג קובץ דינמי ונכון
       });
+
 
       const response = await fetch(`${API_URL}/api/blood-test/analyze`, {
         method: 'POST',
+        // ✅ תיקון 2: מחקנו את ה-Header של Content-Type!
+        // ה-fetch יוסיף אותו לבד עם ה-boundary הנכון.
         headers: {
             'Accept': 'application/json',
         },
@@ -98,7 +77,6 @@ export const useBloodTestLogic = () => {
 
       setAnalysisResults(json.data);
       Alert.alert('Success', 'Analysis complete!');
-
     } catch (error) {
       console.error('Upload Error:', error);
       Alert.alert('Error', 'Failed to analyze document.');
@@ -117,6 +95,7 @@ export const useBloodTestLogic = () => {
   const onSaveAndContinue = async () => {
     if (isSaving) return;
     
+    // 1. Process Conditions
     const detectedConditions: string[] = [];
     if (analysisResults) {
       const { diagnosis } = analysisResults;
@@ -126,6 +105,7 @@ export const useBloodTestLogic = () => {
     }
     if (detectedConditions.length === 0) detectedConditions.push('does not ill');
 
+    // 2. Prepare Payload
     const payload: UserProfilePayload = {
       username: getStringParam(params.username),
       firstName: getStringParam(params.firstName),
@@ -163,18 +143,18 @@ export const useBloodTestLogic = () => {
 
   return {
     state: { 
-      file, 
+      file, // מגיע מ-useUploadFile
       isAnalyzing, 
       isSaving, 
       analysisResults, 
       firstName: getStringParam(params.firstName) 
     },
     actions: { 
-      chooseSource, 
+      chooseSource, // מגיע מ-useUploadFile
       onAnalyze, 
       onManualSelect, 
       onSaveAndContinue,
-      clearFile 
+      clearFile // אופציונלי: אם תרצה כפתור X לניקוי קובץ
     }
   };
 };
