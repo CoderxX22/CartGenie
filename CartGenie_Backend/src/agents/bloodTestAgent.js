@@ -1,8 +1,11 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 import Tesseract from 'tesseract.js';
-// import { fromPath } from 'pdf2pic'; // <--- מחקנו את זה
-import pdf2img from 'pdf-img-convert'; // <--- הוספנו את זה
+
+// --- תיקון: שימוש ב-require במקום import ---
+const pdf2img = require('pdf-img-convert'); 
+// ------------------------------------------
+
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -51,7 +54,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     let extractedText = "";
 
     // --- נסיון ראשון: קריאה מהירה (pdf-parse) ---
-    // זה מעולה למסמכים דיגיטליים, אבל נכשל בסריקות
     if (mimeType === 'application/pdf') {
       try {
           console.log("[Agent] Trying fast PDF parse...");
@@ -64,7 +66,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     } 
 
     // --- נסיון שני: גיבוי OCR ---
-    // נכנסים לפה אם זה תמונה, או אם ה-PDF יצא ריק (כמו שקרה לך בלוגים)
     if (mimeType.startsWith('image/') || extractedText.trim().length < 20) {      
       console.log("[Agent] Starting OCR process...");
       
@@ -75,11 +76,10 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
           console.log("[Agent] Converting PDF to images using pdf-img-convert...");
           
           // המרה ישירה מה-Buffer של ה-PDF ל-Buffer של תמונות (מערך)
-          // זה חוסך את הצורך ב-GraphicsMagick ובשמירה לדיסק!
           imagesBuffers = await pdf2img.convert(fileBuffer, {
-              width: 2000,  // רזולוציה גבוהה ל-OCR
+              width: 2000,
               height: 2000,
-              page_numbers: [1, 2, 3] // מגביל ל-3 עמודים ראשונים למניעת עומס
+              page_numbers: [1, 2, 3] 
           });
           
           console.log(`[Agent] Converted ${imagesBuffers.length} pages to images.`);
@@ -94,7 +94,7 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
           console.log(`[Agent] Running Tesseract on page ${i + 1}...`);
           
           const { data: { text } } = await Tesseract.recognize(imagesBuffers[i], 'eng+heb', {
-              langPath: process.cwd(), // שימוש בקבצי השפה שהעלית לשרת
+              langPath: process.cwd(), 
               gzip: false
           });
           
@@ -127,7 +127,6 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     console.error('❌ Analysis Error:', error.message);
     throw error; 
   } finally {
-      // Cleanup: הפעם כמעט אין מה לנקות כי עבדנו בזיכרון!
       try {
           if (tempPdfPath && fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
       } catch (e) {}
