@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import BloodTest from '../models/BloodTest.js';
-import { analyzeBloodTestImage } from '../agents/bloodTestAgent.js';
+import { analyzeBloodTestImages } from '../agents/bloodTestAgent.js';
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
 
 
     // 3. ביצוע הניתוח
-    const analysisResult = await analyzeBloodTestImage(req.file.buffer, req.file.mimetype);
+    const analysisResult = await analyzeBloodTestImages(req.file.buffer, req.file.mimetype);
 
     // --- שינוי כאן: מחיקת היסטוריה ישנה ---
     // 3.5 מחיקת כל הרשומות הקיימות עבור המשתמש הזה לפני השמירה

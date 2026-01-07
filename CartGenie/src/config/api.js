@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-const PROD_URL = "https://cartgenie-docker-server.azurewebsites.net"; 
+const PROD_URL = "https://cartgenie-docker-server-fqekhyf2fmfpf3gc.israelcentral-01.azurewebsites.net"; 
 
 export function getApiUrl() {
   if (!__DEV__) {
