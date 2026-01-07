@@ -24,25 +24,23 @@ jobs:
       - name: Log in to container registry
         uses: docker/login-action@v2
         with:
-          registry: cartgenieregistry.azurecr.io/
+          registry: cartgenieregistry.azurecr.io
           username: ${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_3934B39132C6454A9E2966ADA58371DE }}
           password: ${{ secrets.AZUREAPPSERVICE_CONTAINERPASSWORD_91AE0CB5D3A342D2920C366E6B2A1027 }}
 
       - name: Build and push container image to registry
         uses: docker/build-push-action@v3
         with:
-          context: .
+          context: ./CartGenie_Backend
           push: true
           tags: cartgenieregistry.azurecr.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_3934B39132C6454A9E2966ADA58371DE }}/appsvc/staticsite:${{ github.sha }}
-          file: ./Dockerfile
+          file: ./CartGenie_Backend/Dockerfile
 
   deploy:
     runs-on: ubuntu-latest
-    
     needs: build
     
     steps:
-      
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v2
