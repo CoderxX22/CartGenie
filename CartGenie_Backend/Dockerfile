@@ -1,28 +1,14 @@
-FROM node:20-bullseye
+FROM node:18-slim
+
+# 👇 חובה! התקנת ספריות גרפיות עבור pdf2pic
 RUN apt-get update && apt-get install -y \
     graphicsmagick \
     ghostscript \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    build-essential
+    && rm -rf /var/lib/apt/lists/*
 
-# יצירת תיקיית עבודה
-WORKDIR /usr/src/app
-
-# העתקת קבצי ההגדרות
+WORKDIR /app
 COPY package*.json ./
-
-# התקנת ספריות Node
 RUN npm install
-
-# העתקת שאר הקוד
 COPY . .
-
-# חשיפת הפורט
-EXPOSE 8080
-
-# הפעלת השרת
-CMD [ "npm", "start" ]
+EXPOSE 4000
+CMD ["npm", "start"]
