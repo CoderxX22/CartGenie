@@ -1,13 +1,12 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-const PROD_URL = "https://cartgenie-server-grargeardthbh0e3.israelcentral-01.azurewebsites.net";
+const PROD_URL = "https://cartgenie-docker-server.azurewebsites.net"; 
 
 export function getApiUrl() {
   if (!__DEV__) {
     return PROD_URL;
   }
-
 
   const hostUri = Constants.expoConfig?.hostUri;
 
