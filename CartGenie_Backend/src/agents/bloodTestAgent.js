@@ -1,7 +1,8 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 import Tesseract from 'tesseract.js';
-import { fromPath } from 'pdf2pic';
+// import { fromPath } from 'pdf2pic'; // <--- מחקנו את זה
+import pdf2img from 'pdf-img-convert'; // <--- הוספנו את זה
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -39,7 +40,6 @@ const RULES = {
  */
 export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
   let tempPdfPath = null;
-  let generatedImages = [];
   
   console.log(`[Agent] Starting analysis for type: ${mimeType}, size: ${fileBuffer.length}`);
 
@@ -51,6 +51,7 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     let extractedText = "";
 
     // --- נסיון ראשון: קריאה מהירה (pdf-parse) ---
+    // זה מעולה למסמכים דיגיטליים, אבל נכשל בסריקות
     if (mimeType === 'application/pdf') {
       try {
           console.log("[Agent] Trying fast PDF parse...");
@@ -63,53 +64,38 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     } 
 
     // --- נסיון שני: גיבוי OCR ---
+    // נכנסים לפה אם זה תמונה, או אם ה-PDF יצא ריק (כמו שקרה לך בלוגים)
     if (mimeType.startsWith('image/') || extractedText.trim().length < 20) {      
       console.log("[Agent] Starting OCR process...");
       
-      // המרה מ-PDF לתמונה (אם צריך)
-      if (mimeType === 'application/pdf') {
-          // ⚠️ הערה חשובה: pdf2pic דורש GraphicsMagick ו-Ghostscript
-          // אם הם לא מותקנים בשרת Azure, החלק הזה ייכשל והקוד יילך ל-catch למטה.
-          const tempFileName = `temp_${Date.now()}.pdf`;
-          tempPdfPath = path.join(os.tmpdir(), tempFileName);
-          fs.writeFileSync(tempPdfPath, fileBuffer);
-          
-          const options = {
-            density: 300,
-            saveFilename: `page_${Date.now()}`,
-            savePath: os.tmpdir(),
-            format: "png",
-            width: 2000,
-            height: 2000
-          };
+      let imagesBuffers = [];
 
-          const convert = fromPath(tempPdfPath, options);          
-          for (let page = 1; page <= 3; page++) {
-            try {
-                const result = await convert(page, { responseType: "image" });
-                if (result.path) generatedImages.push(result.path);
-            } catch (err) { 
-                console.warn(`[Agent] Page ${page} conversion failed:`, err.message);
-                break; 
-            }
-          }
+      // תרחיש 1: המרה מ-PDF לתמונה (עם הספרייה החדשה)
+      if (mimeType === 'application/pdf') {
+          console.log("[Agent] Converting PDF to images using pdf-img-convert...");
+          
+          // המרה ישירה מה-Buffer של ה-PDF ל-Buffer של תמונות (מערך)
+          // זה חוסך את הצורך ב-GraphicsMagick ובשמירה לדיסק!
+          imagesBuffers = await pdf2img.convert(fileBuffer, {
+              width: 2000,  // רזולוציה גבוהה ל-OCR
+              height: 2000,
+              page_numbers: [1, 2, 3] // מגביל ל-3 עמודים ראשונים למניעת עומס
+          });
+          
+          console.log(`[Agent] Converted ${imagesBuffers.length} pages to images.`);
+
       } else {
-        // אם זו תמונה רגילה שהגיעה מהלקוח, נשמור אותה זמנית לדיסק בשביל Tesseract
-        const tempImgName = `img_${Date.now()}.png`;
-        const tempImgPath = path.join(os.tmpdir(), tempImgName);
-        fs.writeFileSync(tempImgPath, fileBuffer);
-        generatedImages.push(tempImgPath);
+        // תרחיש 2: זו כבר תמונה רגילה
+        imagesBuffers.push(fileBuffer);
       }
 
-      // הרצת Tesseract
-      for (const imgPath of generatedImages) {
-          console.log(`[Agent] Running Tesseract on: ${imgPath}`);
-          const imgBuffer = fs.readFileSync(imgPath);
+      // הרצת Tesseract על התמונות
+      for (let i = 0; i < imagesBuffers.length; i++) {
+          console.log(`[Agent] Running Tesseract on page ${i + 1}...`);
           
-          // 🔥 תיקון קריטי ל-Azure: שימוש בקבצי שפה מקומיים 🔥
-          const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', {
-              langPath: process.cwd(), // מחפש את הקבצים בתיקייה הראשית (/home/site/wwwroot)
-              gzip: false // הקבצים שלך הם .traineddata ולא .gz
+          const { data: { text } } = await Tesseract.recognize(imagesBuffers[i], 'eng+heb', {
+              langPath: process.cwd(), // שימוש בקבצי השפה שהעלית לשרת
+              gzip: false
           });
           
           extractedText += text + " ";
@@ -121,7 +107,7 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     console.log(`[Agent] Final text length: ${cleanText.length}`);
     
     if (cleanText.length < 10) {
-        throw new Error("Could not extract text. File might be empty or unreadable (check if Ghostscript is installed for PDF).");
+        throw new Error("Could not extract text. File might be empty or unreadable.");
     }
 
     const { diagnosis, findingsCount } = analyzeTextRules(cleanText);
@@ -141,12 +127,9 @@ export const analyzeBloodTestImage = async (fileBuffer, mimeType) => {
     console.error('❌ Analysis Error:', error.message);
     throw error; 
   } finally {
-      // Cleanup
+      // Cleanup: הפעם כמעט אין מה לנקות כי עבדנו בזיכרון!
       try {
           if (tempPdfPath && fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
-          for (const imgPath of generatedImages) {
-              if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-          }
       } catch (e) {}
   }
 };
