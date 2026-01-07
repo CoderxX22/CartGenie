@@ -22,7 +22,6 @@
       }
     },
     "android": {
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
@@ -43,12 +42,20 @@
       }
     },
     "plugins": [
-      "expo-router",
-      "expo-splash-screen",
-      "expo-secure-store",
-      "expo-web-browser",
-      "@react-native-google-signin/google-signin"
-    ],
+    "expo-router",
+    "expo-splash-screen",
+    "expo-secure-store",
+    "expo-web-browser",
+    "@react-native-google-signin/google-signin",
+    [
+      "expo-build-properties",
+      {
+        "android": {
+          "usesCleartextTraffic": true
+        }
+      }
+    ]
+  ],
     "experiments": {
       "typedRoutes": true
     }
