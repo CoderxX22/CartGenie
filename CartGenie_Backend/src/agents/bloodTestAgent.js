@@ -6,11 +6,9 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// הערה: מחקתי את pdf-parse כי הוא לא היה בשימוש
-
 const RULES = {
   high_cholesterol: { 
-      keywords: ['LDL', 'Cholesterol', 'לורטסלוכ', 'כולסטרול'], // הוספתי גם עברית רגילה ליתר ביטחון
+      keywords: ['LDL', 'Cholesterol', 'לורטסלוכ', 'כולסטרול'], 
       threshold: 100, 
       conditionName: 'High Cholesterol' 
   },
@@ -29,15 +27,18 @@ const RULES = {
 
 export const analyzeBloodTestImages = async (filesArray) => {
   console.log(`[Agent] Starting analysis for ${filesArray.length} files...`);
+  
   let extractedText = "";
   let tempFilesToDelete = [];
 
   try {
     for (const file of filesArray) {
+        const fileName = file.originalname || ""; 
         
-        // --- תרחיש A: הקובץ הוא PDF ---
-        if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
-            console.log(`[Agent] Processing PDF: ${file.originalname}`);
+        const isPdf = file.mimetype === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+
+        if (isPdf) {
+            console.log(`[Agent] Processing PDF: ${fileName}`);
             
             const tempPdfPath = path.join(os.tmpdir(), `temp_${Date.now()}.pdf`);
             fs.writeFileSync(tempPdfPath, file.buffer);
@@ -63,7 +64,7 @@ export const analyzeBloodTestImages = async (filesArray) => {
                         tempFilesToDelete.push(result.path);
                         const imgBuffer = fs.readFileSync(result.path);
                         
-                        // תיקון קריטי: טעינת שפה מ-CDN במקום מהדיסק המקומי
+                        // טעינת שפה מ-CDN
                         const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
                             langPath: 'https://tessdata.projectnaptha.com/4.0.0',
                             gzip: false 
@@ -74,10 +75,8 @@ export const analyzeBloodTestImages = async (filesArray) => {
             }
         } 
         
-        // --- תרחיש B: הקובץ הוא תמונה ---
         else {
-             console.log(`[Agent] Processing Image: ${file.originalname}`);
-             // תיקון קריטי: טעינת שפה מ-CDN
+             console.log(`[Agent] Processing Image: ${fileName}`);
              const { data: { text } } = await Tesseract.recognize(file.buffer, 'eng+heb', { 
                  langPath: 'https://tessdata.projectnaptha.com/4.0.0',
                  gzip: false 
@@ -89,11 +88,10 @@ export const analyzeBloodTestImages = async (filesArray) => {
     const cleanText = extractedText.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
     console.log(`[Agent] Final text length: ${cleanText.length}`);
     
-    if (cleanText.length < 10) throw new Error("Could not extract text.");
+    if (cleanText.length < 10) throw new Error("Could not extract enough text.");
 
     const { diagnosis, findingsCount } = analyzeTextRules(cleanText);
     
-    // שיניתי מעט את הלוגיקה שלא יזרוק שגיאה אם לא מצא ערכים, אלא יחזיר תשובה ריקה (יותר נכון ל-UX)
     if (findingsCount === 0) {
         console.log("No specific blood values detected inside the text.");
     }
@@ -116,7 +114,6 @@ function analyzeTextRules(text) {
   const diagnosisSet = new Set();
   let findingsCount = 0; 
   
-  // הוספתי תמיכה גם בטקסט הפוך וגם בישר
   if (text.match(/(?:LDL|Cholesterol|לורטסלוכ|כולסטרול)/i)) {
       const match = text.match(/LDL.*?(\d{2,3})/i);
       if (match) { 
@@ -141,7 +138,7 @@ function analyzeTextRules(text) {
       const match = text.match(/(?:Sodium|Na\s|ןרתנ|נתרן).*?(\d{3})/i);
       if (match) { 
           const val = parseFloat(match[1]); 
-          if (val < 200) { // סינון רעשים
+          if (val < 200) { 
               findingsCount++; 
               if (val > RULES.high_blood_pressure.threshold && val < RULES.high_blood_pressure.sanityLimit) diagnosisSet.add(RULES.high_blood_pressure.conditionName); 
           } 
