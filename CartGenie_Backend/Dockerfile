@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY package*.json ./
+COPY tessdata ./tessdata
 RUN npm install
 COPY . .
 EXPOSE 4000
