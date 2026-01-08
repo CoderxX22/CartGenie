@@ -26,15 +26,13 @@ const RULES = {
 };
 
 export const analyzeBloodTestImages = async (filesInput) => {
-  // תיקון קלט: הפיכה למערך תקין גם אם הגיע משהו מוזר
+  // הגנה: הפיכה למערך
   let filesArray = Array.isArray(filesInput) ? filesInput : [filesInput];
-  if (filesInput.length > 1000) { // אם האורך הוא ענק, זה כנראה Buffer ולא מערך קבצים
-      filesArray = [filesInput];
-  }
+  if (filesInput.length > 1000) filesArray = [filesInput]; // הגנה מ-Buffer
 
   console.log(`[Agent] Starting analysis for ${filesArray.length} file(s)...`);
   
-  // תיקון נתיב: הוספת סלאש בסוף
+  // נתיב שפה (עם סלאש בסוף!)
   const localLangPath = path.join(process.cwd(), 'tessdata') + '/';
   
   let extractedText = "";
@@ -43,15 +41,18 @@ export const analyzeBloodTestImages = async (filesInput) => {
   try {
     for (const file of filesArray) {
         
-        // חילוץ חכם של ה-Buffer והשם
         const imgBuffer = file.buffer || file; 
-        const fileName = file.originalname || "upload.jpg";
-        const mimeType = file.mimetype || "image/jpeg";
-
-        const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+        const fileName = file.originalname || "unknown_file";
+        
+        // 👇👇👇 התיקון האולטימטיבי (Magic Bytes) 👇👇👇
+        // בודק את 4 הבייטים הראשונים של הקובץ. אם זה PDF, זה תמיד יתחיל ב-%PDF
+        const isPdfHeader = imgBuffer.toString('utf8', 0, 4).startsWith('%PDF');
+        
+        // התנאי החדש: או שהכותרת היא PDF, או שהסיומת היא PDF
+        const isPdf = isPdfHeader || fileName.toLowerCase().endsWith('.pdf') || file.mimetype === 'application/pdf';
 
         if (isPdf) {
-            console.log(`[Agent] Processing PDF: ${fileName}`);
+            console.log(`[Agent] Detected PDF (Header: ${isPdfHeader ? 'Yes' : 'No'}, Name: ${fileName})`);
             
             const tempPdfPath = path.join(os.tmpdir(), `temp_${Date.now()}.pdf`);
             fs.writeFileSync(tempPdfPath, imgBuffer);
@@ -68,6 +69,7 @@ export const analyzeBloodTestImages = async (filesInput) => {
 
             const convert = fromPath(tempPdfPath, options);
             
+            // המרה של עד 3 עמודים
             for (let page = 1; page <= 3; page++) {
                 try {
                     console.log(`[Agent] Converting PDF page ${page}...`);
@@ -85,7 +87,7 @@ export const analyzeBloodTestImages = async (filesInput) => {
                 } catch (err) { break; } 
             }
         } else {
-             console.log(`[Agent] Processing Image: ${fileName}`);
+             console.log(`[Agent] Detected Image: ${fileName}`);
              const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
                  langPath: localLangPath,
                  gzip: false,
