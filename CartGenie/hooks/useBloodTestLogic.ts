@@ -3,7 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { API_URL } from '../src/config/api';
 import UserDataService, { UserProfilePayload } from '../components/userDataServices';
-import { useUploadFile } from './useUploadFile'; 
+import { useUploadFile, UploadedFile } from './useUploadFile'; // 👇 וודא שאתה מייבא את הממשק
 
 interface AnalysisResult {
   rawText?: string;
@@ -14,56 +14,47 @@ export const useBloodTestLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // 👇 שימוש ב-Hook הגנרי לבחירת קובץ
-  const { file, chooseSource, clearFile } = useUploadFile();
+  // עכשיו ה-Hook מחזיר את הערכים הנכונים
+  const { files, chooseSource, clearFiles } = useUploadFile();
 
-  // State מקומי רק ללוגיקה העסקית (ניתוח ושמירה)
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
 
-  // ברגע שנבחר קובץ חדש, נאפס את תוצאות הניתוח הקודמות
   useEffect(() => {
-    if (file) {
+    if (files && files.length > 0) {
       setAnalysisResults(null);
     }
-  }, [file]);
+  }, [files]);
 
   const getStringParam = (param: string | string[] | undefined): string => {
     if (Array.isArray(param)) return param[0];
     return param || '';
   };
 
-  // --- Actions ---
-
   const onAnalyze = async () => {
-    if (!file || isAnalyzing) return;
+    if (files.length === 0 || isAnalyzing) return;
     setIsAnalyzing(true);
     setAnalysisResults(null);
 
     try {
       const formData = new FormData();
       
-      // תיקון נתיב לאנדרואיד
-      const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
-      
-      // זיהוי סוג קובץ נכון - ברירת מחדל ל-PDF אם זה PDF
-      const fileType = file.mimeType || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-
       formData.append('username', getStringParam(params.username) || 'Guest');
-      
-      // @ts-ignore
-      formData.append('bloodTestFile', {
-        uri: cleanUri,
-        name: file.name,
-        type: fileType, // ✅ תיקון 1: סוג קובץ דינמי ונכון
-      });
 
+      // 👇 הוספתי טיפוסים מפורשים (UploadedFile, number) כדי להשתיק את השגיאה
+      files.forEach((file: UploadedFile, index: number) => {
+          const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
+          
+          formData.append('images', {
+            uri: cleanUri,
+            name: file.name || `image_${index}.jpg`,
+            type: file.mimeType || 'image/jpeg',
+          } as any);
+      });
 
       const response = await fetch(`${API_URL}/api/blood-test/analyze`, {
         method: 'POST',
-        // ✅ תיקון 2: מחקנו את ה-Header של Content-Type!
-        // ה-fetch יוסיף אותו לבד עם ה-boundary הנכון.
         headers: {
             'Accept': 'application/json',
         },
@@ -78,7 +69,7 @@ export const useBloodTestLogic = () => {
       Alert.alert('Success', 'Analysis complete!');
     } catch (error) {
       console.error('Upload Error:', error);
-      Alert.alert('Error', 'Failed to analyze document.');
+      Alert.alert('Error', 'Failed to analyze documents.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -94,7 +85,6 @@ export const useBloodTestLogic = () => {
   const onSaveAndContinue = async () => {
     if (isSaving) return;
     
-    // 1. Process Conditions
     const detectedConditions: string[] = [];
     if (analysisResults) {
       const { diagnosis } = analysisResults;
@@ -104,7 +94,6 @@ export const useBloodTestLogic = () => {
     }
     if (detectedConditions.length === 0) detectedConditions.push('does not ill');
 
-    // 2. Prepare Payload
     const payload: UserProfilePayload = {
       username: getStringParam(params.username),
       firstName: getStringParam(params.firstName),
@@ -142,18 +131,18 @@ export const useBloodTestLogic = () => {
 
   return {
     state: { 
-      file, // מגיע מ-useUploadFile
+      files,
       isAnalyzing, 
       isSaving, 
       analysisResults, 
       firstName: getStringParam(params.firstName) 
     },
     actions: { 
-      chooseSource, // מגיע מ-useUploadFile
+      chooseSource, 
       onAnalyze, 
       onManualSelect, 
       onSaveAndContinue,
-      clearFile // אופציונלי: אם תרצה כפתור X לניקוי קובץ
+      clearFiles 
     }
   };
 };

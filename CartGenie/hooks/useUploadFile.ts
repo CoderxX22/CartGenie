@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
-export interface FileData {
+export interface UploadedFile {
   uri: string;
   name: string;
   size?: number;
@@ -11,7 +11,7 @@ export interface FileData {
 }
 
 export function useUploadFile() {
-  const [file, setFile] = useState<FileData | null>(null);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
 
   const takePhoto = useCallback(async () => {
     try {
@@ -23,19 +23,20 @@ export function useUploadFile() {
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, // אפשר לחתוך את התמונה
+        allowsEditing: false, 
         aspect: [4, 3],
-        quality: 0.7, // הורדת איכות קלה למניעת קבצים ענקיים
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        setFile({
+        const newFile: UploadedFile = {
           uri: asset.uri,
           name: `photo_${Date.now()}.jpg`,
           size: asset.fileSize,
           mimeType: 'image/jpeg',
-        });
+        };
+        setFiles((prev) => [...prev, newFile]);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -53,18 +54,18 @@ export function useUploadFile() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
+        allowsMultipleSelection: true,
         quality: 0.7,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setFile({
+      if (!result.canceled && result.assets) {
+        const newFiles: UploadedFile[] = result.assets.map((asset) => ({
           uri: asset.uri,
           name: asset.fileName || `image_${Date.now()}.jpg`,
           size: asset.fileSize,
           mimeType: asset.mimeType || 'image/jpeg',
-        });
+        }));
+        setFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (error) {
       console.error('Error picking from library:', error);
@@ -75,18 +76,27 @@ export function useUploadFile() {
   const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf'],
+        type: ['image/*'],
+        multiple: true,
         copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        setFile({
-          uri: asset.uri,
-          name: asset.name,
-          size: asset.size,
-          mimeType: asset.mimeType || 'application/pdf', // Fallback
-        });
+      if (!result.canceled && result.assets) {
+        const newFiles: UploadedFile[] = result.assets
+          .filter((asset) => asset.mimeType !== 'application/pdf')
+          .map((asset) => ({
+            uri: asset.uri,
+            name: asset.name,
+            size: asset.size,
+            mimeType: asset.mimeType || 'image/jpeg',
+          }));
+
+        if (newFiles.length === 0 && result.assets.length > 0) {
+            Alert.alert("Invalid selection", "Please select image files only.");
+            return;
+        }
+
+        setFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -107,15 +117,14 @@ export function useUploadFile() {
     );
   }, [takePhoto, pickFromLibrary, pickDocument]);
 
-  // פונקציית איפוס למקרה שרוצים לנקות את הקובץ
-  const clearFile = useCallback(() => setFile(null), []);
+  const clearFiles = useCallback(() => setFiles([]), []);
 
   return {
-    file,
-    chooseSource, // כפתור אחד לפתיחת תפריט
-    takePhoto,        // 👇 חשיפה לשימוש ישיר
-    pickFromLibrary,  // 👇 חשיפה לשימוש ישיר
-    pickDocument,     // 👇 חשיפה לשימוש ישיר
-    clearFile,
+    files,
+    chooseSource,
+    takePhoto,
+    pickFromLibrary,
+    pickDocument,
+    clearFiles,
   };
 }
