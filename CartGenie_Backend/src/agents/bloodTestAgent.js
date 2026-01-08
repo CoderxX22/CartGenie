@@ -31,12 +31,18 @@ export const analyzeBloodTestImages = async (filesArray) => {
   let extractedText = "";
   let tempFilesToDelete = [];
 
+  // 👇 הגדרת הנתיב המקומי לקבצי השפה (במקום להוריד מהאינטרנט)
+  const localLangPath = path.join(process.cwd(), 'tessdata');
+
   try {
     for (const file of filesArray) {
+        
+        // הגנה מפני קבצים ללא שם
         const fileName = file.originalname || ""; 
         
         const isPdf = file.mimetype === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 
+        // --- תרחיש A: PDF ---
         if (isPdf) {
             console.log(`[Agent] Processing PDF: ${fileName}`);
             
@@ -64,10 +70,11 @@ export const analyzeBloodTestImages = async (filesArray) => {
                         tempFilesToDelete.push(result.path);
                         const imgBuffer = fs.readFileSync(result.path);
                         
-                        // טעינת שפה מ-CDN
+                        // 👇 שימוש בקבצים המקומיים
                         const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
-                            langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-                            gzip: false 
+                            langPath: localLangPath,
+                            gzip: false,
+                            cachePath: localLangPath // מונע ניסיון הורדה מחדש
                         });
                         extractedText += text + " ";
                     }
@@ -75,11 +82,14 @@ export const analyzeBloodTestImages = async (filesArray) => {
             }
         } 
         
+        // --- תרחיש B: תמונה רגילה ---
         else {
              console.log(`[Agent] Processing Image: ${fileName}`);
+             // 👇 שימוש בקבצים המקומיים
              const { data: { text } } = await Tesseract.recognize(file.buffer, 'eng+heb', { 
-                 langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-                 gzip: false 
+                 langPath: localLangPath,
+                 gzip: false,
+                 cachePath: localLangPath
              });
              extractedText += text + " ";
         }
