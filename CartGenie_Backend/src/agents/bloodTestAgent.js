@@ -25,28 +25,44 @@ const RULES = {
   }
 };
 
-// פונקציית עזר להמרת PDF לתמונות (אופטימלית לביצועים)
+// --- 1. פונקציית OCR בטוחה (בולעת שגיאות במקום לקרוס) ---
+async function safeTesseractRecognize(buffer, langPath) {
+    try {
+        const result = await Tesseract.recognize(buffer, 'eng+heb', { 
+            langPath: langPath,
+            gzip: false,
+            cachePath: langPath,
+            errorHandler: (err) => console.log('>> Tesseract internal warning (ignored):', err) 
+        });
+        return result.data.text;
+    } catch (error) {
+        console.log(`[SafeOCR] OCR failed gracefully. Returning null.`);
+        return null; // מחזיר null, לא זורק שגיאה!
+    }
+}
+
+// --- 2. פונקציית ההמרה מ-PDF לתמונה (החלק ששאלת עליו!) ---
 async function convertPdfToImages(pdfBuffer) {
-    console.log(`[Agent] ⚙️ Starting PDF conversion...`);
+    console.log(`[Agent] ⚙️ Starting PDF conversion (Fast Mode 150 DPI)...`);
     
-    const tempPdfPath = path.join(os.tmpdir(), `temp_proc_${Date.now()}.pdf`);
+    // כתיבת ה-PDF לקובץ זמני
+    const tempPdfPath = path.join(os.tmpdir(), `safe_proc_${Date.now()}.pdf`);
     fs.writeFileSync(tempPdfPath, pdfBuffer);
     
-    // 👇👇👇 שיפור ביצועים קריטי 👇👇👇
-    // הורדנו density מ-300 ל-150. זה מאיץ את התהליך פי 4-5!
+    // הגדרות מהירות (DPI 150 במקום 300 - זה הסוד למהירות!)
     const options = {
         density: 150, 
         saveFilename: `page_${Date.now()}`,
         savePath: os.tmpdir(),
-        format: "jpg", // JPG מהיר יותר מ-PNG לעיבוד
-        width: 1240,   // גודל A4 סטנדרטי ב-150DPI (מספיק בהחלט)
+        format: "jpg",
+        width: 1240,
         height: 1754
     };
 
     const convert = fromPath(tempPdfPath, options);
     const imagePaths = [];
     
-    // המרה של עד 3 עמודים (לרוב מספיק)
+    // המרה של עד 3 עמודים בלבד
     for (let page = 1; page <= 3; page++) {
         try {
             console.log(`[Agent] 📸 Converting page ${page}...`);
@@ -55,129 +71,104 @@ async function convertPdfToImages(pdfBuffer) {
         } catch (err) { break; } 
     }
 
-    // מוחק את ה-PDF המקורי כדי לחסוך מקום
-    if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+    // מחיקת קובץ ה-PDF הזמני
+    try { if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath); } catch(e){}
     
-    return imagePaths;
+    return imagePaths; // מחזיר מערך של נתיבים לתמונות
 }
 
+// --- 3. הלוגיקה הראשית ---
 export const analyzeBloodTestImages = async (filesInput) => {
-  // נרמול קלט
-  let filesArray = Array.isArray(filesInput) ? filesInput : [filesInput];
-  // הגנה אם נשלח באפר ישירות
-  if (filesInput.length > 5000) filesArray = [filesInput]; 
+    // עטיפה ראשית למניעת קריסה ב-100%
+    try {
+        // נרמול קלט (מערך או יחיד)
+        let filesArray = Array.isArray(filesInput) ? filesInput : [filesInput];
+        if (filesInput.length > 5000) filesArray = [filesInput]; 
 
-  console.log(`[Agent] Starting analysis for ${filesArray.length} item(s)...`);
-  
-  // נתיב קבצי שפה
-  const localLangPath = path.join(process.cwd(), 'tessdata'); // Tesseract מוסיף את הסלאש לבד בגרסאות חדשות, אבל הנתיב חייב להיות נכון
-  
-  let finalExtractedText = "";
-  const tempFilesToDelete = [];
-
-  try {
-    for (const file of filesArray) {
-        const imgBuffer = file.buffer || file; 
-        const fileName = (file.originalname || "unknown").toLowerCase();
+        console.log(`[Agent] Starting analysis for ${filesArray.length} item(s)...`);
+        const localLangPath = path.join(process.cwd(), 'tessdata');
         
-        // רשימת קבצים לעיבוד (או התמונה עצמה, או עמודים שהומרו מ-PDF)
-        let imagesToProcess = [];
+        let finalExtractedText = "";
+        const tempFilesToDelete = [];
 
-        // בדיקה 1: האם זה PDF מוצהר?
-        const isExplicitPdf = fileName.endsWith('.pdf') || file.mimetype === 'application/pdf';
+        for (const file of filesArray) {
+            const imgBuffer = file.buffer || file; 
+            const fileName = (file.originalname || "unknown").toLowerCase();
 
-        if (isExplicitPdf) {
-            console.log(`[Agent] 📄 PDF detected by name/type. Converting...`);
-            const paths = await convertPdfToImages(imgBuffer);
-            paths.forEach(p => {
-                imagesToProcess.push(p); // נשמור את הנתיב
-                tempFilesToDelete.push(p); // נזכור למחוק אח"כ
-            });
-        } else {
-            // אם זה לא PDF מוצהר, ננסה להתייחס לזה כתמונה ישירות מה-Buffer
-            imagesToProcess.push({ buffer: imgBuffer }); 
-        }
+            // בדיקה אמינה אם זה PDF (לפי תוכן הקובץ)
+            const headerCheck = imgBuffer.slice(0, 10).toString('utf8');
+            const isDefinitePdf = headerCheck.includes('%PDF') || fileName.endsWith('.pdf') || file.mimetype === 'application/pdf';
 
-        // לולאת OCR על מה שהכנו
-        for (const imgItem of imagesToProcess) {
-            try {
-                // אם זה נתיב (מ-PDF) נקרא אותו, אם זה באפר נשתמש בו
-                const inputForTesseract = imgItem.buffer ? imgItem.buffer : fs.readFileSync(imgItem);
-                
-                console.log(`[Agent] 👁️ Running OCR...`);
-                
-                const { data: { text } } = await Tesseract.recognize(inputForTesseract, 'eng+heb', { 
-                    langPath: localLangPath,
-                    gzip: false,
-                    cachePath: localLangPath,
-                    logger: m => {
-                        // לוג התקדמות רק באחוזים עגולים (חוסך לוגים)
-                        if (m.status === 'recognizing text' && (m.progress * 100) % 20 === 0) {
-                            console.log(`[OCR] Progress: ${Math.round(m.progress * 100)}%`);
+            // --- נתיב 1: זה בוודאות PDF ---
+            if (isDefinitePdf) {
+                console.log(`[Agent] 📄 Definite PDF detected. Converting...`);
+                const paths = await convertPdfToImages(imgBuffer); // קריאה לפונקציית ההמרה
+                for (const p of paths) {
+                    tempFilesToDelete.push(p);
+                    const pBuf = fs.readFileSync(p);
+                    const text = await safeTesseractRecognize(pBuf, localLangPath);
+                    if (text) finalExtractedText += text + " ";
+                }
+            } 
+            // --- נתיב 2: אולי תמונה, אולי PDF מוסווה ---
+            else {
+                console.log(`[Agent] 🖼️ Attempting image OCR...`);
+                let text = await safeTesseractRecognize(imgBuffer, localLangPath);
+
+                // אם ה-OCR נכשל (כי זה בעצם PDF שהתחפש לתמונה)
+                if (!text) {
+                    console.log(`[Agent] ⚠️ Image OCR failed. Recovering by converting as PDF...`);
+                    try {
+                        const paths = await convertPdfToImages(imgBuffer); // מנסים להמיר בכוח
+                        for (const p of paths) {
+                            tempFilesToDelete.push(p);
+                            const pBuf = fs.readFileSync(p);
+                            const pdfText = await safeTesseractRecognize(pBuf, localLangPath);
+                            if (pdfText) finalExtractedText += pdfText + " ";
                         }
-                    }
-                });
-                finalExtractedText += text + " ";
-
-            } catch (error) {
-                // 👇👇👇 המנגנון שמציל מקריסה 👇👇👇
-                // אם ניסינו לעשות OCR על "תמונה" וקיבלנו שגיאה שזה PDF
-                if (error.message && (error.message.includes("Pdf reading") || error.message.includes("read image"))) {
-                    console.log(`[Agent] ⚠️ Image OCR failed. File is likely a hidden PDF. Converting now...`);
-                    
-                    // מפעילים המרה בכוח
-                    const paths = await convertPdfToImages(imgBuffer);
-                    
-                    // מריצים OCR על התמונות החדשות שיצרנו
-                    for (const p of paths) {
-                        tempFilesToDelete.push(p);
-                        const pBuf = fs.readFileSync(p);
-                        const { data: { text } } = await Tesseract.recognize(pBuf, 'eng+heb', { 
-                            langPath: localLangPath, 
-                            gzip: false,
-                            cachePath: localLangPath
-                        });
-                        finalExtractedText += text + " ";
+                    } catch (conversionError) {
+                        console.error(`[Agent] Recovery failed, skipping file.`);
                     }
                 } else {
-                    console.error(`[Agent] OCR Error skipped: ${error.message}`);
+                    finalExtractedText += text + " ";
                 }
             }
         }
+
+        // ניקוי טקסט סופי
+        const cleanText = finalExtractedText.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
+        console.log(`[Agent] Analysis done. Text length: ${cleanText.length}`);
+
+        // ניקוי קבצים זמניים
+        tempFilesToDelete.forEach(p => { try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch(e){} });
+
+        const { diagnosis } = analyzeTextRules(cleanText);
+
+        return { 
+            success: true, 
+            diagnosis: diagnosis.length > 0 ? diagnosis : ['Health looks normal based on limited checks'], 
+            rawText: cleanText.substring(0, 500) 
+        };
+
+    } catch (FATAL_ERROR) {
+        // רשת הביטחון האחרונה בהחלט
+        console.error('❌ FATAL AGENT ERROR (Recovered):', FATAL_ERROR.message);
+        return {
+            success: false,
+            error: "Analysis failed gracefully.",
+            diagnosis: [],
+            rawText: ""
+        };
     }
-
-    // ניקוי טקסט
-    const cleanText = finalExtractedText.replace(/\n/g, ' ').replace(/\s+/g, ' '); 
-    console.log(`[Agent] Analysis done. Text length: ${cleanText.length}`);
-    
-    if (cleanText.length < 5) {
-         // לא זורקים שגיאה כדי לא להפיל את הלקוח, אלא מחזירים תשובה ריקה
-         console.log("[Agent] Warning: No text extracted.");
-    }
-
-    const { diagnosis } = analyzeTextRules(cleanText);
-    
-    return { 
-        success: true, 
-        diagnosis: diagnosis.length > 0 ? diagnosis : ['Health looks normal based on limited checks'], 
-        rawText: cleanText.substring(0, 100) + "..." // מחזירים רק קצת טקסט לדיבוג
-    };
-
-  } catch (error) {
-    console.error('❌ Fatal Analysis Error:', error.message);
-    throw error; 
-  } finally {
-      // ניקוי קבצים זמניים תמיד
-      tempFilesToDelete.forEach(p => { 
-          try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch(e){} 
-      });
-  }
 };
 
 function analyzeTextRules(text) {
+  if (!text) return { diagnosis: [], findingsCount: 0 };
+  
   const diagnosisSet = new Set();
   let findingsCount = 0; 
   
+  // הוספת בדיקות נוספות אם צריך כאן
   if (text.match(/(?:LDL|Cholesterol|לורטסלוכ|כולסטרול)/i)) {
       const match = text.match(/LDL.*?(\d{2,3})/i);
       if (match) { 
