@@ -8,42 +8,36 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-/**
- * POST /api/blood-test/analyze
- * מוחק בדיקות קודמות של המשתמש -> מנתח חדש -> שומר
- */
-router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
+router.post('/analyze', upload.array('images', 10), async (req, res) => {
   try {
-    // 1. בדיקת קיום קובץ
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No image files uploaded' });
     }
 
-    // 2. קבלת שם המשתמש
     const { username } = req.body;
     if (!username) {
       return res.status(400).json({ success: false, message: 'Username is required' });
     }
 
+    const analysisResult = await analyzeBloodTestImages(req.files);
 
-    // 3. ביצוע הניתוח
-    const analysisResult = await analyzeBloodTestImages(req.file.buffer, req.file.mimetype);
+    if (!analysisResult.success) {
+        throw new Error(analysisResult.error || 'Analysis failed');
+    }
 
-    // --- שינוי כאן: מחיקת היסטוריה ישנה ---
-    // 3.5 מחיקת כל הרשומות הקיימות עבור המשתמש הזה לפני השמירה
     await BloodTest.deleteMany({ username: username });
-    // -------------------------------------
 
-    // 4. שמירה ב-MongoDB (כעת זו תהיה הרשומה היחידה של המשתמש)
+    const fileNames = req.files.map(f => f.originalname).join(', ');
+
     const newRecord = new BloodTest({
       username: username,
       diagnosis: analysisResult.diagnosis,
       rawText: analysisResult.rawText, 
-      fileName: req.file.originalname
+      fileName: fileNames 
     });
 
     await newRecord.save();
-    // 5. החזרת תשובה לקליינט
+
     res.json({
       success: true,
       data: {
@@ -53,7 +47,7 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Analysis/Save Error:', error);
+    console.error('Analysis/Save Error:', error.message);
     res.status(500).json({ 
       success: false, 
       message: error.message || 'Internal Server Error' 
@@ -61,11 +55,9 @@ router.post('/analyze', upload.single('bloodTestFile'), async (req, res) => {
   }
 });
 
-// שליפת הבדיקה האחרונה (והיחידה)
 router.get('/history/:username', async (req, res) => {
     try {
         const { username } = req.params;
-        // מכיוון שיש רק אחת, אפשר להשתמש ב-findOne
         const record = await BloodTest.findOne({ username });
         res.json({ success: true, data: record ? [record] : [] });
     } catch (error) {
