@@ -25,57 +25,36 @@ const RULES = {
   }
 };
 
-export const analyzeBloodTestImages = async (filesArray) => {
-  console.log(`[Agent] Starting analysis for ${filesArray.length} files...`);
+export const analyzeBloodTestImages = async (filesInput) => {
+  // תיקון קלט: הפיכה למערך תקין גם אם הגיע משהו מוזר
+  let filesArray = Array.isArray(filesInput) ? filesInput : [filesInput];
+  if (filesInput.length > 1000) { // אם האורך הוא ענק, זה כנראה Buffer ולא מערך קבצים
+      filesArray = [filesInput];
+  }
+
+  console.log(`[Agent] Starting analysis for ${filesArray.length} file(s)...`);
+  
+  // תיקון נתיב: הוספת סלאש בסוף
+  const localLangPath = path.join(process.cwd(), 'tessdata') + '/';
   
   let extractedText = "";
   let tempFilesToDelete = [];
 
-  // 👇 הגדרת הנתיב המקומי (בדרך כלל /app/tessdata בדוקר)
-  const localLangPath = path.join(process.cwd(), 'tessdata');
-
-  // ============================================================
-  // 👇👇👇 בלוק דיאגנוסטיקה קריטי - אל תמחק עד שהכל עובד! 👇👇👇
-  // ============================================================
-  try {
-      console.log(`🔍 [Diagnostic] Checking language path: "${localLangPath}"`);
-      
-      if (fs.existsSync(localLangPath)) {
-          const files = fs.readdirSync(localLangPath);
-          console.log(`📂 [Diagnostic] Files found in directory:`, files);
-          
-          files.forEach(f => {
-              const stats = fs.statSync(path.join(localLangPath, f));
-              console.log(`   📄 File: ${f} | Size: ${stats.size} bytes`);
-          });
-
-          // בדיקה ספציפית לקבצים שאנחנו צריכים
-          if (!files.includes('eng.traineddata') || !files.includes('heb.traineddata')) {
-              console.error(`❌ [Diagnostic] CRITICAL: Missing traineddata files!`);
-          }
-      } else {
-          console.error(`❌ [Diagnostic] CRITICAL: Directory does NOT exist!`);
-          console.log(`   [Diagnostic] Current CWD is: ${process.cwd()}`);
-          console.log(`   [Diagnostic] Root files:`, fs.readdirSync(process.cwd()));
-      }
-  } catch (err) {
-      console.error(`❌ [Diagnostic] Error checking files:`, err.message);
-  }
-  // ============================================================
-
-
   try {
     for (const file of filesArray) {
         
-        const fileName = file.originalname || ""; 
-        const isPdf = file.mimetype === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+        // חילוץ חכם של ה-Buffer והשם
+        const imgBuffer = file.buffer || file; 
+        const fileName = file.originalname || "upload.jpg";
+        const mimeType = file.mimetype || "image/jpeg";
 
-        // --- תרחיש A: PDF ---
+        const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+
         if (isPdf) {
             console.log(`[Agent] Processing PDF: ${fileName}`);
             
             const tempPdfPath = path.join(os.tmpdir(), `temp_${Date.now()}.pdf`);
-            fs.writeFileSync(tempPdfPath, file.buffer);
+            fs.writeFileSync(tempPdfPath, imgBuffer);
             tempFilesToDelete.push(tempPdfPath);
 
             const options = {
@@ -91,14 +70,12 @@ export const analyzeBloodTestImages = async (filesArray) => {
             
             for (let page = 1; page <= 3; page++) {
                 try {
-                    console.log(`[Agent] Converting PDF page ${page} to image...`);
+                    console.log(`[Agent] Converting PDF page ${page}...`);
                     const result = await convert(page, { responseType: "path" });
-                    
                     if (result.path) {
                         tempFilesToDelete.push(result.path);
-                        const imgBuffer = fs.readFileSync(result.path);
-                        
-                        const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
+                        const pageBuffer = fs.readFileSync(result.path);
+                        const { data: { text } } = await Tesseract.recognize(pageBuffer, 'eng+heb', { 
                             langPath: localLangPath,
                             gzip: false,
                             cachePath: localLangPath
@@ -107,13 +84,9 @@ export const analyzeBloodTestImages = async (filesArray) => {
                     }
                 } catch (err) { break; } 
             }
-        } 
-        
-        // --- תרחיש B: תמונה רגילה ---
-        else {
+        } else {
              console.log(`[Agent] Processing Image: ${fileName}`);
-             
-             const { data: { text } } = await Tesseract.recognize(file.buffer, 'eng+heb', { 
+             const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
                  langPath: localLangPath,
                  gzip: false,
                  cachePath: localLangPath
@@ -129,10 +102,6 @@ export const analyzeBloodTestImages = async (filesArray) => {
 
     const { diagnosis, findingsCount } = analyzeTextRules(cleanText);
     
-    if (findingsCount === 0) {
-        console.log("No specific blood values detected inside the text.");
-    }
-
     return { 
         success: true, 
         diagnosis: diagnosis.length > 0 ? diagnosis : ['Health looks normal based on limited checks'], 
@@ -164,7 +133,6 @@ function analyzeTextRules(text) {
           findingsCount++; 
           if (parseFloat(matchGlucose[1]) > RULES.diabetes.thresholds.Glucose) diagnosisSet.add(RULES.diabetes.conditionName); 
       }
-      
       const matchA1C = text.match(/HbA1C.*?(\d{1,2}(?:\.\d)?)/i);
       if (matchA1C) {
           findingsCount++;
