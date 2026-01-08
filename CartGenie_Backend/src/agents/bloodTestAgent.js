@@ -31,15 +31,43 @@ export const analyzeBloodTestImages = async (filesArray) => {
   let extractedText = "";
   let tempFilesToDelete = [];
 
-  // 👇 הגדרת הנתיב המקומי לקבצי השפה (במקום להוריד מהאינטרנט)
+  // 👇 הגדרת הנתיב המקומי (בדרך כלל /app/tessdata בדוקר)
   const localLangPath = path.join(process.cwd(), 'tessdata');
+
+  // ============================================================
+  // 👇👇👇 בלוק דיאגנוסטיקה קריטי - אל תמחק עד שהכל עובד! 👇👇👇
+  // ============================================================
+  try {
+      console.log(`🔍 [Diagnostic] Checking language path: "${localLangPath}"`);
+      
+      if (fs.existsSync(localLangPath)) {
+          const files = fs.readdirSync(localLangPath);
+          console.log(`📂 [Diagnostic] Files found in directory:`, files);
+          
+          files.forEach(f => {
+              const stats = fs.statSync(path.join(localLangPath, f));
+              console.log(`   📄 File: ${f} | Size: ${stats.size} bytes`);
+          });
+
+          // בדיקה ספציפית לקבצים שאנחנו צריכים
+          if (!files.includes('eng.traineddata') || !files.includes('heb.traineddata')) {
+              console.error(`❌ [Diagnostic] CRITICAL: Missing traineddata files!`);
+          }
+      } else {
+          console.error(`❌ [Diagnostic] CRITICAL: Directory does NOT exist!`);
+          console.log(`   [Diagnostic] Current CWD is: ${process.cwd()}`);
+          console.log(`   [Diagnostic] Root files:`, fs.readdirSync(process.cwd()));
+      }
+  } catch (err) {
+      console.error(`❌ [Diagnostic] Error checking files:`, err.message);
+  }
+  // ============================================================
+
 
   try {
     for (const file of filesArray) {
         
-        // הגנה מפני קבצים ללא שם
         const fileName = file.originalname || ""; 
-        
         const isPdf = file.mimetype === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 
         // --- תרחיש A: PDF ---
@@ -70,11 +98,10 @@ export const analyzeBloodTestImages = async (filesArray) => {
                         tempFilesToDelete.push(result.path);
                         const imgBuffer = fs.readFileSync(result.path);
                         
-                        // 👇 שימוש בקבצים המקומיים
                         const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng+heb', { 
                             langPath: localLangPath,
                             gzip: false,
-                            cachePath: localLangPath // מונע ניסיון הורדה מחדש
+                            cachePath: localLangPath
                         });
                         extractedText += text + " ";
                     }
@@ -85,7 +112,7 @@ export const analyzeBloodTestImages = async (filesArray) => {
         // --- תרחיש B: תמונה רגילה ---
         else {
              console.log(`[Agent] Processing Image: ${fileName}`);
-             // 👇 שימוש בקבצים המקומיים
+             
              const { data: { text } } = await Tesseract.recognize(file.buffer, 'eng+heb', { 
                  langPath: localLangPath,
                  gzip: false,
