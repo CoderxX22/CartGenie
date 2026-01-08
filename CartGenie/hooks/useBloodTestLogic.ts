@@ -3,7 +3,6 @@ import { Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { API_URL } from '../src/config/api';
 import UserDataService, { UserProfilePayload } from '../components/userDataServices';
-// 👇 ייבוא ה-Hook הגנרי החדש
 import { useUploadFile } from './useUploadFile'; 
 
 interface AnalysisResult {
