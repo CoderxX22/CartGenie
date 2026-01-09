@@ -3,7 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { API_URL } from '../src/config/api';
 import UserDataService, { UserProfilePayload } from '../components/userDataServices';
-import { useUploadFile, UploadedFile } from './useUploadFile'; // 👇 וודא שאתה מייבא את הממשק
+import { useUploadFile, UploadedFile } from './useUploadFile';
 
 interface AnalysisResult {
   rawText?: string;
@@ -14,7 +14,6 @@ export const useBloodTestLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // עכשיו ה-Hook מחזיר את הערכים הנכונים
   const { files, chooseSource, clearFiles } = useUploadFile();
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -42,7 +41,6 @@ export const useBloodTestLogic = () => {
       
       formData.append('username', getStringParam(params.username) || 'Guest');
 
-      // 👇 הוספתי טיפוסים מפורשים (UploadedFile, number) כדי להשתיק את השגיאה
       files.forEach((file: UploadedFile, index: number) => {
           const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
           

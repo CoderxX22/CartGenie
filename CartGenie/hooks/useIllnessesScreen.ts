@@ -64,7 +64,7 @@ export const useIllnessesScreenLogic = () => {
       
       console.log("Payload to save:", payload); // לוג לניפוי באגים
 
-      // שימוש ב-Service המתוקן (שים לב לסוגריים המסולסלים ב-import למעלה)
+      // שימוש ב-Service המתוקן
       await UserDataService.saveUserProfile(payload);
 
       // שמירה באחסון המקומי
@@ -96,7 +96,7 @@ export const useIllnessesScreenLogic = () => {
           text: 'Confirm & Save',
           onPress: async () => {
             await Haptics.selectionAsync();
-            saveDataAndNavigate([], '');
+            saveDataAndNavigate(['does not ill'], '');
           },
         },
       ]

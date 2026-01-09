@@ -8,14 +8,15 @@ import { useBloodTestLogic } from '../hooks/useBloodTestLogic';
 import { createBloodTestStyles } from '../app/styles/bloodTest.styles';
 
 const ACCENT = '#0096c7';
-const SUCCESS_COLOR = '#10B981'; // צבע ירוק להצלחה
+const SUCCESS_COLOR = '#10B981';
 
 export default function BloodTestUploadScreen() {
   const col = useAppColors();
   const styles = useMemo(() => createBloodTestStyles(col), [col]);
   const { state, actions } = useBloodTestLogic();
 
-  const { file, isAnalyzing, isSaving, analysisResults, firstName } = state;
+  // 👇 תיקון 1: מושכים את files (מערך) ולא file
+  const { files, isAnalyzing, isSaving, analysisResults, firstName } = state;
 
   return (
     <>
@@ -24,7 +25,7 @@ export default function BloodTestUploadScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Blood Test Upload</Text>
           <Text style={styles.subtitle}>
-            Upload your file for a better matching of products.
+            Upload your files for a better matching of products.
           </Text>
 
           {/* User Banner */}
@@ -39,9 +40,19 @@ export default function BloodTestUploadScreen() {
           <View style={styles.dropZone}>
             <View style={{ alignItems: 'center', gap: 6 }}>
               <Text style={styles.dropTitle}>
-                {file ? 'File Ready to Upload' : 'Select File'}
+                {files.length > 0 ? `${files.length} File(s) Selected` : 'Select Files'}
               </Text>
-              {file && <Text style={styles.fileName}>{file.name}</Text>}
+              
+              {/* 👇 תיקון 2: הצגת רשימת הקבצים */}
+              {files.length > 0 && (
+                <View style={{ alignItems: 'center' }}>
+                  {files.map((f, index) => (
+                    <Text key={index} style={styles.fileName} numberOfLines={1}>
+                      📄 {f.name}
+                    </Text>
+                  ))}
+                </View>
+              )}
             </View>
 
             <TouchableOpacity 
@@ -50,19 +61,29 @@ export default function BloodTestUploadScreen() {
                 disabled={isAnalyzing || isSaving}
             >
               <Ionicons name="cloud-upload-outline" size={18} color={ACCENT} />
-              <Text style={styles.browseText}>{file ? 'Change' : 'Select'}</Text>
+              <Text style={styles.browseText}>
+                {files.length > 0 ? 'Add More' : 'Select'}
+              </Text>
             </TouchableOpacity>
+            
+            {/* כפתור ניקוי אופציונלי - אם תרצה להוסיף */}
+             {files.length > 0 && !isAnalyzing && (
+                <TouchableOpacity onPress={actions.clearFiles} style={{ marginTop: 10 }}>
+                    <Text style={{ color: 'red', fontSize: 12 }}>Clear Selection</Text>
+                </TouchableOpacity>
+             )}
           </View>
 
           {/* Action Button: Analyze */}
           <TouchableOpacity
             style={[
                 styles.primaryButton, 
-                // אם אין קובץ, או שטוען, או ששומר - נחליש את הכפתור, אלא אם כן כבר יש תוצאות (ואז אפשר לנתח שוב)
-                (!file || isAnalyzing || isSaving) && { opacity: 0.6 }
+                // 👇 תיקון 3: בדיקת אורך המערך
+                (files.length === 0 || isAnalyzing || isSaving) && { opacity: 0.6 }
             ]}
             onPress={actions.onAnalyze}
-            disabled={!file || isAnalyzing || isSaving}
+            // 👇 תיקון 4: בדיקת אורך המערך
+            disabled={files.length === 0 || isAnalyzing || isSaving}
           >
             {isAnalyzing ? (
               <>
@@ -70,14 +91,13 @@ export default function BloodTestUploadScreen() {
                 <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>Analyzing...</Text>
               </>
             ) : (
-              // 👇 השינוי כאן: שינוי הטקסט אם יש תוצאות
               <Text style={styles.primaryButtonText}>
-                {analysisResults ? 'Analyze Other File' : 'Analyze File'}
+                {analysisResults ? 'Analyze Again' : `Analyze ${files.length > 0 ? `(${files.length})` : ''}`}
               </Text>
             )}
           </TouchableOpacity>
 
-          {/* Manual Select Option (Only if no results yet) */}
+          {/* Manual Select Option */}
           {!analysisResults && !isAnalyzing && (
             <TouchableOpacity style={styles.manualBtn} onPress={actions.onManualSelect} disabled={isSaving}>
               <Text style={styles.manualBtnText}>No file? Select Illnesses Manually</Text>
@@ -90,7 +110,6 @@ export default function BloodTestUploadScreen() {
             <View style={styles.resultsContainer}>
               <View style={styles.divider} />
               
-              {/* 👇 הודעת הצלחה חדשה */}
               <View style={styles.successBanner}>
                 <Ionicons name="checkmark-circle" size={24} color={SUCCESS_COLOR} />
                 <View style={{flex: 1}}>
