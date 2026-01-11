@@ -7,29 +7,37 @@ import { useUploadFile } from './useUploadFile';
 export const useScanReceiptLogic = () => {
   const router = useRouter();
 
-  const { file, takePhoto, pickFromLibrary, pickDocument } = useUploadFile();
+  // 👇 שינוי 1: מושכים את files (מערך)
+  const { files, takePhoto, pickFromLibrary, pickDocument } = useUploadFile();
   const [loading, setLoading] = useState(false);
 
   const uploadAndScan = async () => {
-    if (!file) return;
+    // 👇 שינוי 2: בדיקה אם המערך ריק
+    if (files.length === 0) return;
     if (loading) return;
 
     setLoading(true);
 
     try {
+      // 👇 שינוי 3: לוקחים את הקובץ הראשון מהמערך
+      const fileToUpload = files[0];
+
       const formData = new FormData();
-      const cleanUri = Platform.OS === 'android' ? file.uri : file.uri.replace('file://', '');
+      const cleanUri = Platform.OS === 'android' ? fileToUpload.uri : fileToUpload.uri.replace('file://', '');
 
       // @ts-ignore
       formData.append('receiptImage', {
         uri: cleanUri,
-        name: file.name,
-        type: file.mimeType || 'application/octet-stream',
+        name: fileToUpload.name,
+        type: fileToUpload.mimeType || 'image/jpeg',
       });
 
       const response = await fetch(`${API_URL}/api/ocr/scan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' },
+        // 👇 שינוי 4: הסרת Content-Type כדי שהדפדפן יגדיר boundary לבד
+        headers: { 
+            'Accept': 'application/json' 
+        },
         body: formData,
       });
 
@@ -52,7 +60,8 @@ export const useScanReceiptLogic = () => {
   };
 
   return {
-    state: { file, loading },
+    // 👇 שינוי 5: מחזירים את files למסך (כדי שיוכל להציג שהקובץ נבחר)
+    state: { files, loading },
     actions: { takePhoto, pickFromLibrary, pickDocument, uploadAndScan },
   };
 };

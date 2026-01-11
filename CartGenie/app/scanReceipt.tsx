@@ -15,7 +15,10 @@ export default function ScanReceiptScreen() {
   const styles = useMemo(() => createScanReceiptStyles(col), [col]);
 
   const { state, actions } = useScanReceiptLogic();
-  const { file, loading } = state;
+  
+  const { files, loading } = state;
+
+  const currentFile = files && files.length > 0 ? files[0] : null;
 
   // Type-safe navigation logic
   const goHome = () => {
@@ -47,7 +50,8 @@ export default function ScanReceiptScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Receipt Preview Component */}
-        <ReceiptPreview imageUri={file?.uri} colors={col} />
+        {/* 👇 תיקון 3: שימוש ב-currentFile */}
+        <ReceiptPreview imageUri={currentFile?.uri} colors={col} />
 
         {/* Action Buttons Row */}
         <View style={styles.buttonRow}>
@@ -83,7 +87,8 @@ export default function ScanReceiptScreen() {
         </View>
 
         {/* Analyze Button (Conditional) */}
-        {file && (
+        {/* 👇 תיקון 4: בדיקה אם יש קבצים במערך */}
+        {files.length > 0 && (
           <TouchableOpacity
             style={[styles.scanBtn, loading && { opacity: 0.7 }]}
             onPress={actions.uploadAndScan}
@@ -107,10 +112,6 @@ export default function ScanReceiptScreen() {
 
 // --- Sub-Components ---
 
-/**
- * Reusable button for the source selection row
- * Reduces JSX repetition for Documents/Gallery/Camera buttons
- */
 interface ActionButtonProps {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
