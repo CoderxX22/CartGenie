@@ -1,25 +1,25 @@
 import { useState } from 'react';
 import { Alert, Platform } from 'react-native';
-import { useRouter, Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { API_URL } from '../src/config/api';
 import { useUploadFile } from './useUploadFile';
 
 export const useScanReceiptLogic = () => {
   const router = useRouter();
 
-  // 👇 שינוי 1: מושכים את files (מערך)
-  const { files, takePhoto, pickFromLibrary, pickDocument } = useUploadFile();
+  // 👇 שינוי 1: שימוש במצב 'replace' וחשיפת הפונקציה clearFiles
+  const { files, takePhoto, pickFromLibrary, pickDocument, clearFiles } = useUploadFile({ mode: 'replace' });
+  
   const [loading, setLoading] = useState(false);
 
   const uploadAndScan = async () => {
-    // 👇 שינוי 2: בדיקה אם המערך ריק
     if (files.length === 0) return;
     if (loading) return;
 
     setLoading(true);
 
     try {
-      // 👇 שינוי 3: לוקחים את הקובץ הראשון מהמערך
+      // במצב replace, הקובץ הרלוונטי הוא תמיד הראשון (והיחיד)
       const fileToUpload = files[0];
 
       const formData = new FormData();
@@ -34,7 +34,6 @@ export const useScanReceiptLogic = () => {
 
       const response = await fetch(`${API_URL}/api/ocr/scan`, {
         method: 'POST',
-        // 👇 שינוי 4: הסרת Content-Type כדי שהדפדפן יגדיר boundary לבד
         headers: { 
             'Accept': 'application/json' 
         },
@@ -44,8 +43,12 @@ export const useScanReceiptLogic = () => {
       const data = await response.json();
       if (!data.success) throw new Error(data.message || 'OCR Failed');
 
+      // 👇 שינוי 2: איפוס הקבצים מיד לאחר הצלחה
+      clearFiles();
+
       router.push({
-        pathname: '/ReceiptResultsScreen' as Href,
+        // 👇 שינוי 3: עקיפת שגיאת הטיפוסים של הראוטר
+        pathname: '/ReceiptResultsScreen' as any,
         params: {
           rawText: data.data.rawText,
           extractedItems: JSON.stringify(data.data.extractedItems),
@@ -60,8 +63,7 @@ export const useScanReceiptLogic = () => {
   };
 
   return {
-    // 👇 שינוי 5: מחזירים את files למסך (כדי שיוכל להציג שהקובץ נבחר)
     state: { files, loading },
-    actions: { takePhoto, pickFromLibrary, pickDocument, uploadAndScan },
+    actions: { takePhoto, pickFromLibrary, pickDocument, uploadAndScan, clearFiles },
   };
 };
