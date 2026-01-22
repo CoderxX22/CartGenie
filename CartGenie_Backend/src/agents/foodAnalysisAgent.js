@@ -21,12 +21,18 @@ export const analyzeFoodSafety = async (userProfile, productData) => {
       dataDescription = `Single Product: "${productData.name}" (Brand: "${productData.brand || 'General'}")`;
     }
 
+    // --- הוספת נתוני גוף (BMI & WHtR) ---
+    const bmi = userProfile.bmi || (userProfile.bodyMeasurements && userProfile.bodyMeasurements.bmi) || 'Unknown';
+    const whtr = userProfile.whtr || (userProfile.bodyMeasurements && userProfile.bodyMeasurements.whtr) || 'Unknown';
+
     // 3. בניית הפרומפט
     const prompt = `
       You are an expert clinical nutritionist AI agent.
       
       User Profile (INTERNAL USE ONLY - DO NOT REVEAL IN OUTPUT):
       - Age: ${userProfile.ageYears || userProfile.age || 'Unknown'}
+      - BMI: ${bmi}
+      - Waist-to-Height Ratio (WHtR): ${whtr}
       - Medical Conditions: ${userProfile.illnesses ? userProfile.illnesses.join(', ') : 'None'}
       - Other notes: ${userProfile.otherIllnesses || 'None'}
       
@@ -35,7 +41,18 @@ export const analyzeFoodSafety = async (userProfile, productData) => {
       
       Instructions:
       1. Identify the food item(s) based on general knowledge.
-      2. Check suitability against the user's specific medical conditions.
+      2. Check suitability against the user's specific medical conditions AND body measurements.
+      
+      3. **NUANCED APPROACH WITH STRICT SAFETY GUARDRAILS (Crucial):**
+         
+         A. **The "Soft" Rule (General Wellness):** - If a product is slightly imperfect (e.g., moderate processing/sugar/fat) BUT the user has a healthy BMI/WHtR and NO conflicting illnesses, lean towards "SAFE".
+            - Do not be overly alarmist about general processed food for a healthy person.
+
+         B. **The "Hard" Safety Limit (NO COMPROMISE):**
+            - **STOP!** If the product contains ingredients that directly contradict a specific medical condition (e.g., Sugar for Diabetes, Sodium for Hypertension, Gluten for Celiac), you MUST mark it as "CAUTION" or "AVOID".
+            - This applies **EVEN IF** the user has a perfect BMI.
+            - **Do not allow** any flexibility if consumption could worsen the specific condition or lead to health deterioration.
+            - Priority: Preventing exacerbation of illness > Dietary flexibility.
       
       ⚠️ IMPORTANT PRIVACY & SAFETY RULES:
       1. **NEVER** explicitly mention the name of the medical diagnosis (e.g., do NOT say "Because of your Diabetes" or "Due to Hypertension").
