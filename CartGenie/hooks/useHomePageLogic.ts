@@ -4,11 +4,9 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useIllnesses } from '@/hooks/useIllnesses';
 import { formatShortDate, getRandomTip } from '../utils/homeUtils';
-import { getUserLocal, clearUserLocal } from '../utils/userDataManger'; // וודא שהשם תואם לשם הקובץ שלך
+import { getUserLocal, clearUserLocal } from '../utils/userDataManger'; 
 
 const BLOOD_KEY = 'BLOOD_TEST_LAST_UPLOAD';
-const TIME_FORMULA = 1000 * 60 * 60 * 24;
-const DAYS_IN_YEAR = 365;
 
 export const useHomePageLogic = () => {
   const router = useRouter();
@@ -28,14 +26,15 @@ export const useHomePageLogic = () => {
       let isActive = true;
 
       const loadData = async () => {
-        // 1. קריאת הנתונים מהקובץ (כולל hasBloodTests)
         const localData = await getUserLocal();
         
+        // הדפסה לבדיקה - תסתכל בטרמינל כדי לוודא שיש firstName בתוך האובייקט
+        console.log("📥 Loaded user data in Home:", localData);
+
         if (isActive && localData) {
           setUserData(localData);
         }
 
-        // 2. קריאת תאריך (לצורך תצוגת תאריך אם צריך)
         try {
           const raw = await SecureStore.getItemAsync(BLOOD_KEY);
           if (isActive && raw) {
@@ -57,7 +56,12 @@ export const useHomePageLogic = () => {
 
   const tip = useMemo(() => getRandomTip(), []);
 
-  const greetingName = userData.firstName || params.username || 'there';
+  // 👇 התיקון כאן: דואגים שהשם יתעדכן ברגע ש-userData משתנה, ומוודאים שאין בעיית טיפוסים
+  const greetingName = useMemo(() => {
+    // מנסים לקחת את השם הפרטי, אם אין לוקחים את שם המשתמש מהפרמטרים, ואם גם זה אין - 'there'
+    const nameFromParams = Array.isArray(params.username) ? params.username[0] : params.username;
+    return userData?.firstName || nameFromParams || 'there';
+  }, [userData?.firstName, params.username]);
 
   // --- סטטוסים ---
   

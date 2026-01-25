@@ -23,7 +23,8 @@ export default function ReceiptResultsScreen() {
   const itemsStr = Array.isArray(rawItems) ? rawItems[0] : rawItems;
 
   const { state, actions } = useReceiptAnalysis(itemsStr as string);
-  const { aiResult, loadingStep, errorMsg, isSaved } = state;
+  // 👇 שינוי 1: משכנו את warningMsg מה-State
+  const { aiResult, loadingStep, errorMsg, warningMsg, isSaved } = state;
 
   // --- Actions ---
 
@@ -95,8 +96,28 @@ export default function ReceiptResultsScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* 👇 שינוי 2: באנר אזהרה במקרה שחלק מהמוצרים לא זוהו */}
+          {warningMsg && (
+            <View style={{
+              backgroundColor: '#FFF3CD',
+              borderColor: '#FFEEBA',
+              borderWidth: 1,
+              padding: 12,
+              borderRadius: 8,
+              marginTop: 15,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <Ionicons name="warning-outline" size={22} color="#856404" />
+              <Text style={{ color: '#856404', fontSize: 13, fontWeight: '600', flex: 1 }}>
+                {warningMsg}
+              </Text>
+            </View>
+          )}
+
           {/* Items List */}
-          <View style={styles.section}>
+          <View style={[styles.section, warningMsg ? { marginTop: 15 } : {}]}>
             <Text style={styles.sectionTitle}>Analyzed Items ({analyzedItems.length})</Text>
             <View style={styles.itemsList}>
               {analyzedItems.map((item, index) => (

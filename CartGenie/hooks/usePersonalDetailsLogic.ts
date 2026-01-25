@@ -16,21 +16,18 @@ export const usePersonalDetailsLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // State
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [ageYears, setAgeYears] = useState<string>('');
   const [sex, setSex] = useState<Sex>('');
   
-  // UI State
   const [showSexPicker, setShowSexPicker] = useState(false);
   const [showAgePicker, setShowAgePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tempSex, setTempSex] = useState<Sex>('');
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  // Helpers
   const formatDate = (d?: Date | null) => {
     if (!d) return '';
     const dd = String(d.getDate()).padStart(2, '0');
@@ -47,14 +44,23 @@ export const usePersonalDetailsLogic = () => {
     return String(years);
   };
 
-  // Handlers
-  const onAgeChange = (_event: any, selected?: Date) => {
-    if (!selected) return;
-    setBirthDate(selected);
-    setAgeYears(calculateAge(selected));
-    
-    if (errors.birthDate) setErrors(prev => ({ ...prev, birthDate: undefined }));
-    if (Platform.OS !== 'ios') setShowAgePicker(false);
+  const onAgeChange = (event: any, selectedDate?: Date) => {
+    // 1. באנדרואיד חייבים לסגור את הפיקר מיד כדי למנוע לולאה אינסופית
+    if (Platform.OS === 'android') {
+      setShowAgePicker(false);
+    }
+
+    // 2. אם המשתמש ביטל (לחץ Cancel) - יוצאים
+    if (event.type === 'dismissed') {
+      return;
+    }
+
+    // 3. אם המשתמש לחץ 'אישור' (set) ויש תאריך
+    if (event.type === 'set' && selectedDate) {
+      setBirthDate(selectedDate);
+      setAgeYears(calculateAge(selectedDate));
+      if (errors.birthDate) setErrors(prev => ({ ...prev, birthDate: undefined }));
+    }
   };
 
   const openSexPicker = () => {
@@ -111,7 +117,6 @@ export const usePersonalDetailsLogic = () => {
     ui: { showSexPicker, setShowSexPicker, showAgePicker, setShowAgePicker, loading, tempSex },
     errors,
     params,
-    // 👇 הוספתי את validate כאן:
     actions: { onAgeChange, openSexPicker, confirmSexSelection, onContinue, validate },
     helpers: { formatDate },
     isDisabled: loading || !firstName || !lastName || !birthDate || !sex

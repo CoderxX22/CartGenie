@@ -7,6 +7,8 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
   const [loadingStep, setLoadingStep] = useState<LoadingStep>('FETCHING_NAMES');
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 👇 הוספתי משתנה חדש עבור הודעת אזהרה
+  const [warningMsg, setWarningMsg] = useState<string | null>(null); 
   const [isSaved, setIsSaved] = useState(false);
   const [productCount, setProductCount] = useState(0);
 
@@ -20,8 +22,6 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
         throw new Error("You must be logged in to save history.");
       }
 
-      
-      // חישוב סטטיסטיקות לשמירה
       const safeCount = aiResult.analyzedItems.filter(i => i.recommendation === 'SAFE').length;
       const cautionCount = aiResult.analyzedItems.filter(i => i.recommendation === 'CAUTION').length;
       const avoidCount = aiResult.analyzedItems.filter(i => i.recommendation === 'AVOID').length;
@@ -41,7 +41,7 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
       setIsSaved(true);
     } catch (error: any) {
       console.error('❌ Failed to save:', error);
-      throw error; // זורק שגיאה כדי שה-UI יציג Alert
+      throw error;
     }
   };
 
@@ -50,6 +50,7 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
     const runSmartAnalysis = async () => {
       try {
         setLoadingStep('FETCHING_NAMES');
+        setWarningMsg(null); // איפוס אזהרות קודמות
 
         // 1. Parse Barcodes
         let barcodes: string[] = [];
@@ -71,15 +72,23 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
         const dbData = await dbRes.json();
         if (!dbData.success) throw new Error('Failed to resolve products.');
 
-        const productNames: string[] = dbData.data
-            .filter((p: any) => !p.notFound)
-            .map((p: any) => p.name);
+        // 👇 לוגיקה חדשה: הפרדה בין מה שזוהה למה שלא
+        const validProducts = dbData.data.filter((p: any) => !p.notFound).map((p: any) => p.name);
+        const notFoundCount = dbData.data.length - validProducts.length;
 
-        setProductCount(productNames.length);
+        // אם יש פריטים שלא זוהו, מציגים אזהרה למשתמש
+        if (notFoundCount > 0) {
+          setWarningMsg(`${notFoundCount} items were not identified due to unclear receipt quality.`);
+        }
 
-        if (productNames.length === 0) throw new Error('None of the items were found in DB.');
+        setProductCount(validProducts.length);
 
-        // 3. AI Analysis
+        // אם *אף* מוצר לא זוהה, נעצור את התהליך ונעיף שגיאה
+        if (validProducts.length === 0) {
+          throw new Error('None of the items could be read clearly. Please try taking a better photo.');
+        }
+
+        // 3. AI Analysis (שולחים רק את המוצרים התקינים)
         setLoadingStep('ANALYZING_HEALTH');
         const savedUsername = await AsyncStorage.getItem('loggedInUser');
         const currentUser = savedUsername || 'guest';
@@ -87,7 +96,7 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
         const aiRes = await fetch(`${API_URL}/api/ai/consult-cart`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: currentUser, products: productNames })
+          body: JSON.stringify({ username: currentUser, products: validProducts })
         });
 
         const aiJson = await aiRes.json();
@@ -109,8 +118,9 @@ export const useReceiptAnalysis = (extractedItemsString?: string) => {
     runSmartAnalysis();
   }, [extractedItemsString]);
 
+  // 👇 הוספתי את warningMsg ל-state המוחזר
   return {
-    state: { aiResult, loadingStep, errorMsg, isSaved, productCount },
+    state: { aiResult, loadingStep, errorMsg, warningMsg, isSaved, productCount },
     actions: { saveReceiptToHistory }
   };
 };

@@ -27,7 +27,6 @@ export default function PersonalDetails() {
   
   const { form, setters, ui, errors, params, actions, helpers, isDisabled } = usePersonalDetailsLogic();
 
-  // Close picker when focusing on text inputs
   const handleInputFocus = () => ui.setShowAgePicker(false);
 
   return (
@@ -38,7 +37,6 @@ export default function PersonalDetails() {
         <View style={styles.card}>
           <Text style={styles.title}>Personal Information</Text>
 
-          {/* User Banner (if logged in) */}
           {params.username && (
             <View style={styles.usernameBanner}>
               <Ionicons name="person-circle" size={20} color={ACCENT} />
@@ -46,7 +44,6 @@ export default function PersonalDetails() {
             </View>
           )}
 
-          {/* First Name */}
           <InputField
             label="First Name"
             placeholder="Enter your first name"
@@ -62,7 +59,6 @@ export default function PersonalDetails() {
             onFocus={handleInputFocus}
           />
 
-          {/* Last Name */}
           <InputField
             label="Last Name"
             placeholder="Enter your last name"
@@ -75,7 +71,6 @@ export default function PersonalDetails() {
             onFocus={handleInputFocus}
           />
 
-          {/* Date of Birth */}
           <SelectField
             label="Birth Date"
             placeholder="Select your birth date"
@@ -90,7 +85,6 @@ export default function PersonalDetails() {
             helperText={form.ageYears ? `Calculated age: ${form.ageYears}` : undefined}
           />
 
-          {/* Sex Selector */}
           <SexSelector 
             selected={form.sex} 
             onSelect={setters.setSex} 
@@ -98,7 +92,6 @@ export default function PersonalDetails() {
             colors={col} 
           />
 
-          {/* Continue Button */}
           <TouchableOpacity
             style={[styles.primaryButton, isDisabled && { opacity: 0.5 }]}
             onPress={actions.onContinue}
@@ -117,37 +110,44 @@ export default function PersonalDetails() {
         </View>
       </View>
 
-      {/* Date Picker Modal */}
-      <Modal 
-        visible={ui.showAgePicker} 
-        transparent 
-        animationType="slide" 
-        onRequestClose={() => ui.setShowAgePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHandle} />
-            <DateTimePicker
-              value={form.birthDate ?? new Date(2000, 0, 1)}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={actions.onAgeChange}
-              maximumDate={new Date()}
-              textColor={col.text}
-            />
-            {Platform.OS === 'ios' && (
+      {Platform.OS === 'ios' && (
+        <Modal 
+          visible={ui.showAgePicker} 
+          transparent 
+          animationType="slide" 
+          onRequestClose={() => ui.setShowAgePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHandle} />
+              <DateTimePicker
+                value={form.birthDate ?? new Date(2000, 0, 1)}
+                mode="date"
+                display="spinner"
+                onChange={actions.onAgeChange}
+                maximumDate={new Date()}
+                textColor={col.text}
+              />
               <TouchableOpacity style={styles.modalButton} onPress={() => ui.setShowAgePicker(false)}>
                 <Text style={styles.modalButtonText}>Done</Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
+
+      {Platform.OS === 'android' && ui.showAgePicker && (
+        <DateTimePicker
+          value={form.birthDate ?? new Date(2000, 0, 1)}
+          mode="date"
+          display="default"
+          onChange={actions.onAgeChange}
+          maximumDate={new Date()}
+        />
+      )}
     </>
   );
 }
-
-// --- Sub-Components ---
 
 interface SexSelectorProps {
   selected: Sex | null;
@@ -180,7 +180,7 @@ const SexSelector = ({ selected, onSelect, error, colors }: SexSelectorProps) =>
       fontSize: 16,
     },
     errorText: {
-      color: '#ef4444', // Red-500
+      color: '#ef4444',
       fontSize: 12,
       marginTop: 6,
       marginLeft: 4,
@@ -193,7 +193,7 @@ const SexSelector = ({ selected, onSelect, error, colors }: SexSelectorProps) =>
       <View style={localStyles.row}>
         {options.map((option) => {
           const isSelected = selected === option;
-          const displayLabel = option.charAt(0).toUpperCase() + option.slice(1); // Capitalize first letter
+          const displayLabel = option.charAt(0).toUpperCase() + option.slice(1);
 
           return (
             <TouchableOpacity
