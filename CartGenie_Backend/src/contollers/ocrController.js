@@ -1,6 +1,7 @@
 import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp'; // 👈 הוספנו את Sharp לעיבוד התמונה
 
 /**
  * פונקציה שמקבלת תמונה ומחזירה את הטקסט שבה
@@ -16,32 +17,46 @@ export const scanReceipt = async (req, res) => {
       });
     }
 
-    const imagePath = req.file.path;
+    const originalImagePath = req.file.path;
+    // ניצור נתיב לקובץ התמונה המעובד
+    const processedImagePath = `${originalImagePath}_processed.png`;
 
-    // 2. הרצת Tesseract
-    const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
+    // 2. עיבוד מקדים של התמונה (קריטי לדיוק)
+    // הופך לשחור-לבן, מחדד, ומעלה קונטרסט כדי שהמספרים יבלטו
+    await sharp(originalImagePath)
+      .grayscale()
+      .linear(1.5, -0.2) // הגדלת קונטרסט
+      .threshold(128)    // הכל נהיה או שחור מוחלט או לבן מוחלט
+      .sharpen()
+      .toFile(processedImagePath);
+
+    // 3. הרצת Tesseract על התמונה המעובדת עם הגדרות למספרים בלבד
+    const { data: { text } } = await Tesseract.recognize(processedImagePath, 'eng', {
+      tessedit_char_whitelist: '0123456789 \n', // 👈 מתעלם מאותיות, מחפש רק מספרים
+      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK, // 👈 מותאם לקריאת רשימות
+      oem: 1, // מנוע LSTM מדויק
     });
 
-    // 3. מחיקת הקובץ הזמני מהשרת (ניקוי)
-    fs.unlink(imagePath, (err) => {
-      if (err) console.error('Error deleting temp file:', err);
-    });
+    // 4. מחיקת הקבצים הזמניים מהשרת (גם המקורי וגם המעובד)
+    fs.unlink(originalImagePath, () => {});
+    fs.unlink(processedImagePath, () => {});
 
-    // 4. החזרת התשובה
+    // 5. החזרת התשובה
     res.json({
       success: true,
       data: {
         rawText: text,
-        // שימוש בפונקציה החדשה לחילוץ ברקודים בלבד
         extractedItems: parseBarcodesOnly(text) 
       }
     });
 
   } catch (error) {
     console.error('❌ OCR Error:', error);
-    // ניסיון מחיקה גם במקרה שגיאה
+    
+    // ניקוי הקבצים גם במקרה של שגיאה
     if (req.file && req.file.path) {
-        fs.unlink(req.file.path, (err) => {});
+        fs.unlink(req.file.path, () => {});
+        fs.unlink(`${req.file.path}_processed.png`, () => {});
     }
     
     res.status(500).json({ 
@@ -54,11 +69,9 @@ export const scanReceipt = async (req, res) => {
 
 /**
  * פונקציה לחילוץ ברקודים בלבד מתוך הטקסט
- * מחפשת רצפים של ספרות באורך 8 עד 14 תווים
  */
 const parseBarcodesOnly = (text) => {
-  // Regex שמוצא רצפים של ספרות (בין 12 ל-14 ספרות)
-  // \b מבטיח שאנחנו לוקחים מספר שלם ולא חלק ממספר ארוך יותר
+  // Regex שמחפש רצפים של 12 עד 14 ספרות (תקני ברקוד)
   const barcodeRegex = /\b\d{12,14}\b/g;
   
   const matches = text.match(barcodeRegex);
