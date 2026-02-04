@@ -75,7 +75,7 @@ cd CartGenie/server
 npm install
 
 # Create a .env file
-echo "PORT=3000" >> .env
+echo "PORT=4000" >> .env
 echo "MONGO_URI=your_mongodb_connection_string" >> .env
 echo "GEMINI_API_KEY=your_google_api_key" >> .env
 
@@ -111,5 +111,5 @@ Contributions are welcome! Please fork the repository and submit a pull request.
 
 
 
-
-© 2026 Nir Froiman. All Rights Reserved.
+<br>
+<small>© 2026 Nir Froiman. All Rights Reserved.</small>
