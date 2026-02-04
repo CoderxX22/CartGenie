@@ -1,14 +1,115 @@
-# CartGenie
+# 🛒 CartGenie
 
-# Abstract
-Purchasing groceries is an integral part of daily life, but the preparatory process involves a series of manual tasks—alerting household members, checking existing supplies, and drawing up lists. 
-Despite the assistance from digital tools like phone applications, chatbots, or memo papers, users often recall essential items at times and do not synchronize food consumption with their medical needs. 
-We create a smart grocery management platform that moves beyond traditional mechanisms. The system can predict potential diseases by scanning blood test reports from users and generating individualized shopping lists according to health-based dietary advice. It also scans supermarket receipts to check if the items purchased are by the health-based diet advice of the user.
-The platform reduces man-power usage, automates core processes, and optimizes the effectiveness of food shopping by involving health and nutrition advice in the purchase process.
+### Your Personal Health Assistant for Smarter Shopping
+
+**CartGenie** is a full-stack mobile application that bridges the gap between your medical data and your grocery shopping. It acts as a "Digital Nutritionist," analyzing scanned receipts and products to provide personalized recommendations based on your blood test results and body metrics.
+
+---
+
+## 🚀 Features
+
+* **🩺 Medical Profiling:** Users input blood test results (e.g., Glucose, Iron) and body measurements.
+* **📸 Smart Scanning:** Scan receipts or individual products using the camera.
+* **🧠 AI-Powered Analysis:**
+    * **OCR:** Extracts text from receipts using **Tesseract.js** with advanced image pre-processing.
+    * **GenAI:** Uses **Google Gemini 2.5 Flash** to analyze ingredients semantically.
+* **🛡️ Personalized Safety Checks:** Cross-references ingredients with the user's medical profile to flag health risks (Safe / Caution / Avoid).
+* **☁️ Cloud Infrastructure:** Hosted on **Microsoft Azure** with a scalable **MongoDB** database.
+
+---
+
+## 🛠 Tech Stack
+
+### Client (Mobile)
+* **Framework:** React Native (Expo)
+* **Language:** TypeScript / JavaScript
+* **Build & CI/CD:** EAS (Expo Application Services) - *Cloud Builds & OTA Updates*
+* **Navigation:** Expo Router
+* **State Management:** React Hooks
+
+### Backend (Server)
+* **Runtime:** Node.js & Express
+* **Database:** MongoDB (Mongoose)
+* **Image Processing:** `sharp` (Binarization & Contrast optimization for OCR)
+* **OCR Engine:** `tesseract.js` (Page Segmentation Mode 6)
+* **AI Integration:** Google Gemini API
+* **Security:** `bcrypt` for password hashing, `Multer` for secure file streaming.
+
+---
+
+## ⚙️ Architecture & Engineering Highlights
+
+### 1. The AI Pipeline (Batching Strategy)
+To optimize performance and manage API quotas, CartGenie aggregates scanned products into a single **batch request** to the Gemini API.
+* **Problem:** Sending individual requests for 20 items causes latency and hits `429 Too Many Requests` errors.
+* **Solution:** A structured JSON prompt sends the entire cart context at once, reducing processing time by ~80%.
+
+### 2. OCR Optimization Pipeline
+Standard OCR often fails on wrinkled or low-light thermal receipts. I implemented a pre-processing pipeline using **Sharp**:
+1.  **Grayscale:** Removes color noise.
+2.  **Linear Contrast:** Boosts the distinction between text and paper.
+3.  **Thresholding (128):** Converts image to strict Black & White (Binary).
+4.  **Sharpening:** Enhances text edges.
+* **Result:** Significantly higher accuracy for Tesseract.js compared to raw image processing.
+
+### 3. Cross-Platform Infrastructure
+Utilized **EAS (Expo Application Services)** to manage the build pipeline, allowing for the generation of production-ready Android APKs/AABs via the cloud, independent of the local development environment.
+
+---
+
+## 📦 Installation & Setup
+
+### Prerequisites
+* Node.js (v18+)
+* MongoDB Account (or local instance)
+* Google Gemini API Key
+* Expo CLI / EAS CLI (`npm install -g eas-cli`)
+
+### 1. Backend Setup
+```bash
+# Clone the repository
+git clone [https://github.com/YOUR_USERNAME/CartGenie.git](https://github.com/YOUR_USERNAME/CartGenie.git)
+cd CartGenie/server
+
+# Install dependencies
+npm install
+
+# Create a .env file
+echo "PORT=3000" >> .env
+echo "MONGO_URI=your_mongodb_connection_string" >> .env
+echo "GEMINI_API_KEY=your_google_api_key" >> .env
+
+# Start the server
+npm start
+```
+### 2. Mobile App Setup
+```bash
+cd ../client
+
+# Install dependencies
+npm install
+
+# Configure EAS Build (First time only)
+eas login
+eas build:configure
+
+# Create a Development Build (for Android)
+eas build --profile development --platform android
+```
+### 3. Running the App (Development Client)
+Note: Since this project uses native libraries (Camera, etc.), you cannot use standard "Expo Go". You must use the Development Build created in the previous step.
+
+1. Scan the QR code generated by the EAS build terminal output to download and install the .apk on your Android device.
+
+2. Start the development server:
+  npx expo start --dev-client
+
+3. Scan the new QR code with the specific CartGenie app installed on your phone.
+
+### 🤝 Contributing
+Contributions are welcome! Please fork the repository and submit a pull request.
 
 
-# Project Category
-This project falls under research and development (R&D) in the field of mobile application development and ML-driven automation.
-It focuses on improving the grocery shopping experience by leveraging machine learning to analyze user Blood Test, physical parameters, and recipe preferences.
-The app intelligently generates personalized feedback which gives the user information if the purchase is valid for their health state.
-By continuously learning from user interactions, the system enhances efficiency, reduces manual effort, and optimizes grocery shopping.
+
+
+© 2026 Nir Froiman. All Rights Reserved.
